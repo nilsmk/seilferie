@@ -235,17 +235,77 @@
                             Første reisedato:
                         </label>
                         <div class="relative">
-                            <i class="fa-regular fa-calendar absolute left-3 top-3 text-teal-400 pointer-events-none z-10"></i>
+                            <i class="fa-regular fa-calendar absolute left-3 top-3 text-teal-400"></i>
                             <input 
-                                type="text" 
+                                type="date" 
                                 id="input-start-date" 
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-white font-medium focus:ring-2 focus:ring-teal-500 outline-none text-sm cursor-pointer"
-                                placeholder="Velg dato (dd/mm/yyyy)"
+                                onchange="updateStartDate(this.value)"
+                                class="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 pl-10 pr-4 text-white font-medium focus:ring-2 focus:ring-teal-500 outline-none text-sm"
                             />
                         </div>
                     </div>
 
-                    <div class="flex items-center justify-between pt-2">
+                    <!-- SAVED ROUTES ARCHIVE -->
+                    <div class="border-t border-slate-800 pt-4 space-y-3">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                            Lagrede ruter / Alternativer:
+                        </label>
+                        <div class="flex gap-2">
+                            <input 
+                                type="text" 
+                                id="input-route-name" 
+                                placeholder="F.eks. Hovedrute, rute B..." 
+                                class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 outline-none focus:ring-1 focus:ring-teal-500"
+                            />
+                            <button onclick="saveCurrentRoute()" class="px-3 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl text-xs font-black transition duration-200">
+                                Lagre
+                            </button>
+                        </div>
+                        <div id="saved-routes-list" class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                            <!-- Dynamically populated list of saved routes -->
+                        </div>
+                    </div>
+
+                    <!-- CLOUD & FILE BACKUP PANEL -->
+                    <div class="border-t border-slate-800 pt-4 space-y-3">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                            Sky-synk & Fil-backup:
+                        </label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="exportToFile()" class="px-2.5 py-2 bg-slate-950 hover:bg-slate-850 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 transition flex items-center justify-center gap-1.5" title="Last ned planen din som en fil">
+                                <i class="fa-solid fa-file-export text-teal-400"></i> Lagre til fil
+                            </button>
+                            <button onclick="triggerFileInput()" class="px-2.5 py-2 bg-slate-950 hover:bg-slate-850 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 transition flex items-center justify-center gap-1.5" title="Gjenopprett en lagret fil">
+                                <i class="fa-solid fa-file-import text-teal-400"></i> Hent fra fil
+                            </button>
+                            <input type="file" id="file-import-input" onchange="importFromFile(event)" class="hidden" accept=".json" />
+                        </div>
+                        
+                        <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-900 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Sky-synkronisering</span>
+                                <span class="text-[9px] bg-teal-500/10 text-teal-400 border border-teal-500/20 px-1.5 py-0.5 rounded font-black">UTEN REGISTRERING</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 leading-normal">Generer en sky-kode for å åpne denne planen på andre enheter (f.eks. mobilen om bord).</p>
+                            <div class="flex gap-2">
+                                <input 
+                                    type="text" 
+                                    id="input-cloud-code" 
+                                    placeholder="Skriv inn sky-kode..." 
+                                    class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-600 outline-none focus:ring-1 focus:ring-teal-500 uppercase tracking-wider text-center"
+                                />
+                                <button onclick="downloadFromCloud()" class="px-3 py-1.5 bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 rounded-xl text-xs font-bold transition">
+                                    Hent rute
+                                </button>
+                            </div>
+                            <button onclick="uploadToCloud()" class="w-full py-2 bg-gradient-to-r from-teal-500 to-marine-600 hover:from-teal-400 hover:to-marine-500 text-slate-950 rounded-xl text-xs font-extrabold transition shadow-md flex items-center justify-center gap-1.5">
+                                <i class="fa-solid fa-cloud-arrow-up"></i> Last opp til skyen (Få kode)
+                            </button>
+                            <div id="cloud-sync-result"></div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-800">
                         <button onclick="showResetConfirmation()" class="px-3 py-1.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg text-xs font-semibold transition-all duration-200">
                             <i class="fa-solid fa-trash-can mr-1"></i> Nullstill rute
                         </button>
@@ -538,9 +598,11 @@
             toast.className = `fixed bottom-5 right-5 z-[10000] p-4 rounded-xl shadow-2xl transition-all duration-300 transform translate-y-10 opacity-0 border text-sm font-bold flex items-center gap-2 ${
                 type === "error" 
                 ? "bg-rose-950/90 text-rose-200 border-rose-500/30" 
+                : type === "info"
+                ? "bg-sky-950/90 text-sky-200 border-sky-500/30"
                 : "bg-emerald-950/90 text-emerald-200 border-emerald-500/30"
             }`;
-            toast.innerHTML = `<i class="fa-solid ${type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-check'}"></i> <span>${message}</span>`;
+            toast.innerHTML = `<i class="fa-solid ${type === 'error' ? 'fa-circle-exclamation' : type === 'info' ? 'fa-spinner animate-spin' : 'fa-circle-check'}"></i> <span>${message}</span>`;
             document.body.appendChild(toast);
             
             // Trigger transition
@@ -806,6 +868,87 @@
             renderAll();
         }
 
+        function getSavedRoutes() {
+            return safeLocalStorageGet("seil_saved_routes", []);
+        }
+
+        function saveCurrentRoute() {
+            const nameInput = document.getElementById("input-route-name");
+            let name = nameInput.value.trim();
+            if (!name) {
+                name = "Rute " + new Date().toLocaleDateString("no-NO");
+            }
+            
+            const savedRoutes = getSavedRoutes();
+            const newRoute = {
+                id: Date.now().toString(),
+                name: name,
+                startDate: state.startDate,
+                routeDays: JSON.parse(JSON.stringify(state.routeDays)),
+                dinners: JSON.parse(JSON.stringify(state.dinners))
+            };
+            
+            savedRoutes.push(newRoute);
+            safeLocalStorageSet("seil_saved_routes", savedRoutes);
+            nameInput.value = "";
+            
+            showToast(`Ruten "${name}" ble lagret!`, "success");
+            renderAll();
+        }
+
+        function loadSavedRoute(id) {
+            const savedRoutes = getSavedRoutes();
+            const route = savedRoutes.find(r => r.id === id);
+            if (!route) return;
+            
+            state.startDate = route.startDate;
+            state.routeDays = JSON.parse(JSON.stringify(route.routeDays));
+            if (route.dinners) {
+                state.dinners = JSON.parse(JSON.stringify(route.dinners));
+            }
+            
+            persistState();
+            showToast(`Lastet inn rute: "${route.name}"`, "success");
+            renderAll();
+        }
+
+        function deleteSavedRoute(id) {
+            let savedRoutes = getSavedRoutes();
+            const routeToDelete = savedRoutes.find(r => r.id === id);
+            const name = routeToDelete ? routeToDelete.name : "";
+            
+            savedRoutes = savedRoutes.filter(r => r.id !== id);
+            safeLocalStorageSet("seil_saved_routes", savedRoutes);
+            
+            showToast(`Ruten "${name}" ble slettet.`, "success");
+            renderAll();
+        }
+
+        function renderSavedRoutesList() {
+            const listContainer = document.getElementById("saved-routes-list");
+            if (!listContainer) return;
+            
+            const savedRoutes = getSavedRoutes();
+            if (savedRoutes.length === 0) {
+                listContainer.innerHTML = `<p class="text-[10px] text-slate-500 italic">Ingen lagrede alternativer ennå.</p>`;
+                return;
+            }
+            
+            listContainer.innerHTML = savedRoutes.map(r => `
+                <div class="flex items-center justify-between bg-slate-950 p-2 rounded-lg border border-slate-900 text-xs">
+                    <span class="font-semibold text-slate-300 truncate max-w-[140px]" title="${r.name}">${r.name}</span>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <button onclick="loadSavedRoute('${r.id}')" class="px-2 py-1 bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 rounded text-[10px] font-bold" title="Last inn rute">
+                            Åpne
+                        </button>
+                        <button onclick="deleteSavedRoute('${r.id}')" class="p-1 text-rose-400 hover:bg-rose-500/10 rounded" title="Slett rute">
+                            <i class="fa-solid fa-trash-can text-[10px]"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
         // Dinners addition
         function addDinnerIdea() {
             const input = document.getElementById("new-dinner-input");
@@ -822,6 +965,152 @@
             state.dinners = state.dinners.filter(d => d !== dinner);
             persistState();
             renderAll();
+        }
+
+        // FILE BACKUP MECHANICS
+        function exportToFile() {
+            const dataToExport = {
+                startDate: state.startDate,
+                dinners: state.dinners,
+                routeDays: state.routeDays,
+                savedRoutes: getSavedRoutes()
+            };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `seilferie_ruteplan_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast("Planen er lagret som .json fil!", "success");
+        }
+
+        function triggerFileInput() {
+            document.getElementById("file-import-input").click();
+        }
+
+        function importFromFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data && data.routeDays) {
+                        if (confirm("Vil du overskrive gjeldende rute og alle dine lagrede alternativer med filen du laster opp?")) {
+                            state.startDate = data.startDate || "24/07/2026";
+                            state.routeDays = data.routeDays;
+                            if (data.dinners) state.dinners = data.dinners;
+                            if (data.savedRoutes) {
+                                safeLocalStorageSet("seil_saved_routes", data.savedRoutes);
+                            }
+                            persistState();
+                            showToast("Ruteplan importert suksessfullt!", "success");
+                            renderAll();
+                        }
+                    } else {
+                        showToast("Feil: Ugyldig filstruktur.", "error");
+                    }
+                } catch (err) {
+                    showToast("Kunne ikke lese JSON-filen.", "error");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // CLOUD SYNCHRONIZATION VIA ANONYMOUS KV ENDPOINT
+        function generateSyncCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No confusing chars like 0, O, I, 1
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+
+        async function uploadToCloud() {
+            const code = generateSyncCode();
+            const dataToSync = {
+                startDate: state.startDate,
+                dinners: state.dinners,
+                routeDays: state.routeDays,
+                savedRoutes: getSavedRoutes()
+            };
+            try {
+                showToast("Kobler til skyen...", "info");
+                // Using a unique public bucket with random identifier
+                const response = await fetch(`https://kvdb.io/8D4fG7hS9jK2l5zX3c1v/seilferie_${code}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dataToSync)
+                });
+                if (response.ok) {
+                    document.getElementById("cloud-sync-result").innerHTML = `
+                        <div class="mt-2 bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-xl text-xs space-y-1">
+                            <p class="font-bold text-emerald-300">Sky-opplasting vellykket!</p>
+                            <p class="text-slate-300">Bruk denne koden på andre enheter:</p>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="bg-slate-950 px-2.5 py-1 rounded text-base font-black text-teal-400 tracking-widest">${code}</span>
+                                <button onclick="copyToClipboard('${code}')" class="p-1 text-slate-400 hover:text-white" title="Kopier kode">
+                                    <i class="fa-solid fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    showToast("Planen er lagret i skyen!", "success");
+                } else {
+                    throw new Error("Feil ved opplasting");
+                }
+            } catch (err) {
+                showToast("Klarte ikke å lagre i skyen.", "error");
+            }
+        }
+
+        async function downloadFromCloud() {
+            const codeInput = document.getElementById("input-cloud-code");
+            const code = codeInput.value.trim().toUpperCase();
+            if (!code) {
+                showToast("Skriv inn en 6-sifret kode først.", "error");
+                return;
+            }
+            try {
+                showToast("Henter rute fra skyen...", "info");
+                const response = await fetch(`https://kvdb.io/8D4fG7hS9jK2l5zX3c1v/seilferie_${code}`);
+                if (!response.ok) {
+                    showToast("Ugyldig eller utgått sky-kode.", "error");
+                    return;
+                }
+                const data = await response.json();
+                if (data && data.routeDays) {
+                    if (confirm("Vil du overskrive gjeldende rute og alle lagrede alternativer med data fra skyen?")) {
+                        state.startDate = data.startDate || "24/07/2026";
+                        state.routeDays = data.routeDays;
+                        if (data.dinners) state.dinners = data.dinners;
+                        if (data.savedRoutes) {
+                            safeLocalStorageSet("seil_saved_routes", data.savedRoutes);
+                        }
+                        persistState();
+                        codeInput.value = "";
+                        document.getElementById("cloud-sync-result").innerHTML = "";
+                        showToast("Synkronisering fullført!", "success");
+                        renderAll();
+                    }
+                } else {
+                    showToast("Ugyldig dataformat i skyen.", "error");
+                }
+            } catch (err) {
+                showToast("Klarte ikke å hente data.", "error");
+            }
+        }
+
+        function copyToClipboard(text) {
+            const tempEl = document.createElement('textarea');
+            tempEl.value = text;
+            document.body.appendChild(tempEl);
+            tempEl.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempEl);
+            showToast("Kode kopiert til utklippstavlen!", "success");
         }
 
         // 6. MAP ENGINE FUNCTIONS
@@ -961,6 +1250,9 @@
             document.getElementById("stat-distance").innerText = `${totalNM.toFixed(1)} NM (${totalKM.toFixed(0)} km)`;
             document.getElementById("stat-wind-alerts").innerText = `${windAlerts} dager`;
             document.getElementById("stat-rain-alerts").innerText = `${rainAlerts} dager`;
+
+            // Render saved routes list
+            renderSavedRoutesList();
 
             // Render day cards
             const container = document.getElementById("day-cards-container");
