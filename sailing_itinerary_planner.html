@@ -982,43 +982,43 @@
             return `${days[d.getDay()]} ${d.getDate()}. ${months[d.getMonth()]} ${d.getFullYear()}`;
         }
 
-        function generateWeather(harborId, index) {
-            const cleanId = String(harborId || "saetre");
-            const seed = (cleanId.charCodeAt(0) + index * 13) % 100;
-            
-            const windSpeed = parseFloat((3 + (seed % 7) + (seed % 3) * 0.9).toFixed(1));
-            const gusts = parseFloat((windSpeed * (1.2 + (seed % 4) * 0.15)).toFixed(1));
-            const temp = 17 + (seed % 8);
-            
-            let condition = "Sunny";
-            if (seed % 4 === 1) condition = "Cloudy";
-            else if (seed % 4 === 2) condition = "Rainy";
-            else if (seed % 4 === 3) condition = "Windy";
-
-            const rainAmount = condition === "Rainy" ? parseFloat((1.5 + (seed % 5) * 1.8).toFixed(1)) : 0;
-            const windDir = ["N", "NØ", "Ø", "SØ", "S", "SV", "V", "NV"][seed % 8];
-
-            return { temp, windSpeed, gusts, condition, rainAmount, windDir, isLive: false };
+        // Helper to generate a rotated wind direction arrow (pointing where the wind blows TO)
+        function getWindArrowHtml(windDir) {
+            if (!windDir) return "";
+            const mapping = {
+                "N": 180,   // Wind from North blows South (180deg)
+                "NØ": 225,  // Wind from North-East blows South-West (225deg)
+                "Ø": 270,   // Wind from East blows West (270deg)
+                "SØ": 315,  // Wind from South-East blows North-West (315deg)
+                "S": 0,     // Wind from South blows North (0deg)
+                "SV": 45,   // Wind from South-West blows North-East (45deg)
+                "V": 90,    // Wind from West blows East (90deg)
+                "NV": 135   // Wind from North-West blows South-East (135deg)
+            };
+            const rotation = mapping[windDir];
+            if (rotation === undefined) return "";
+            return `
+                <span class="inline-block transition-transform duration-300" style="transform: rotate(${rotation}deg);" title="Vind fra ${windDir} (blåser mot ${getBlowingToDirection(windDir)})">
+                    <i class="fa-solid fa-arrow-up text-teal-400 text-xs"></i>
+                </span>
+            `;
         }
 
-        function updateStartDate(val) {
-            state.startDate = val;
-            persistState();
-            fetchStatus = {};
-            liveWeatherData = {};
-            renderAll();
+        function getBlowingToDirection(windDir) {
+            const opposite = {
+                "N": "sør",
+                "NØ": "sør-vest",
+                "Ø": "vest",
+                "SØ": "nord-vest",
+                "S": "nord",
+                "SV": "nord-øst",
+                "V": "øst",
+                "NV": "sør-øst"
+            };
+            return opposite[windDir] || "";
         }
 
-        function switchTab(tabId) {
-            state.selectedTab = tabId;
-            
-            document.getElementById("tab-content-planner").classList.add("hidden");
-            document.getElementById("tab-content-dinners").classList.add("hidden");
-            document.getElementById("tab-content-database").classList.add("hidden");
-            document.getElementById("tab-content-summary").classList.add("hidden");
-
-            document.querySelectorAll("nav button").forEach(btn => {
-                btn.className = "px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition duration-200 flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-900";
+        // Deterministic fallback weather generator based on harbor & index (when outside MET's forecast date window)
             });
 
             const activeBtn = document.getElementById(`btn-${tabId}`);
@@ -1585,275 +1585,17 @@
             const pathCoords = [];
 
             state.routeDays.forEach((day, index) => {
-                const harbor = state.harbors.find(h => h.id === day.harborId);
-                if (harbor) {
-                    pathCoords.push([harbor.lat, harbor.lng]);
-
-                    const markerColor = day.booked ? "#10b981" : "#0ea5e9";
-                    const markerWeight = day.booked ? 3 : 2;
-                    const markerRadius = day.booked ? 10 : 8;
-
-                    const marker = L.circleMarker([harbor.lat, harbor.lng], {
-                        radius: markerRadius,
-                        fillColor: markerColor,
-                        color: "#ffffff",
-                        weight: markerWeight,
-                        fillOpacity: 0.9
-                    }).addTo(map);
-
-                    const lockBadge = day.booked ? `<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] px-1.5 py-0.5 rounded font-extrabold flex items-center gap-1 w-max mt-1"><i class="fa-solid fa-lock text-[8px]"></i> BESTILT HAVN</span>` : '';
-
-                    marker.bindPopup(`
-                        <div class="p-1">
-                            <h4 class="font-bold text-sm text-white">${harbor.name}</h4>
-                            <p class="text-xs text-sky-200 mt-0.5">Dag ${index + 1} i ruteplanen</p>
-                            ${lockBadge}
-                        </div>
-                    `);
-
-                    mapMarkers.push(marker);
-                }
-            });
-
-            if (pathCoords.length > 1) {
-                mapPolyline = L.polyline(pathCoords, {
-                    color: '#14b8a6',
-                    weight: 4,
-                    opacity: 0.8,
-                    dashArray: '8, 6'
-                }).addTo(map);
-
-                map.fitBounds(mapPolyline.getBounds(), { padding: [30, 30] });
-            } else if (pathCoords.length === 1) {
-                map.setView(pathCoords[0], 10);
-            }
-        }
-
-        function initializeHarborMap() {
-            try {
-                if (dbMap) return;
-                dbMap = L.map('harbors-db-map', {
-                    center: [59.2, 10.7],
-                    zoom: 8,
-                    zoomControl: true,
-                });
-
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
-                }).addTo(dbMap);
-
-                // Add map click listener to automatically capture coordinates
-                dbMap.on('click', function(e) {
-                    if (editingHarborId) return; // Ignore general clicking on map if in edit mode
-
-                    document.getElementById('new-harbor-lat').value = e.latlng.lat.toFixed(5);
-                    document.getElementById('new-harbor-lng').value = e.latlng.lng.toFixed(5);
-                    
-                    if (dbTempMarker) {
-                        dbTempMarker.setLatLng(e.latlng);
-                    } else {
-                        dbTempMarker = L.marker(e.latlng, {
-                            draggable: true,
-                            icon: L.divIcon({
-                                html: '<i class="fa-solid fa-crosshairs text-rose-500 text-2xl"></i>',
-                                iconSize: [24, 24],
-                                iconAnchor: [12, 12]
-                            })
-                        }).addTo(dbMap);
-
-                        dbTempMarker.on('dragend', function(event) {
-                            const marker = event.target;
-                            const position = marker.getLatLng();
-                            document.getElementById('new-harbor-lat').value = position.lat.toFixed(5);
-                            document.getElementById('new-harbor-lng').value = position.lng.toFixed(5);
-                        });
-                    }
-
-                    showToast("Posisjon markert på kartet!", "info");
-                });
-
-            } catch (e) {
-                console.error("Harbors Database Map initialization failed", e);
-            }
-        }
-
-        function drawDatabaseMapRoutes() {
-            if (!dbMap) return;
-
-            dbMapMarkers.forEach(m => m.remove());
-            dbMapMarkers = [];
-
-            state.harbors.forEach(harbor => {
-                const isPlanned = state.routeDays.some(d => d.harborId === harbor.id);
-                const isEditingThis = editingHarborId === harbor.id;
-
-                if (isEditingThis) {
-                    // Create standard draggable marker for the harbor being edited
-                    const marker = L.marker([harbor.lat, harbor.lng], {
-                        draggable: true,
-                        icon: L.divIcon({
-                            html: '<div class="relative flex items-center justify-center"><span class="animate-ping absolute inline-flex h-8 w-8 rounded-full bg-amber-400 opacity-60"></span><i class="fa-solid fa-anchor text-amber-400 text-2xl relative drop-shadow-lg"></i></div>',
-                            iconSize: [28, 28],
-                            iconAnchor: [14, 14]
-                        })
-                    }).addTo(dbMap);
-
-                    marker.bindPopup(`
-                        <div class="p-1">
-                            <h4 class="font-bold text-sm text-amber-300">Flytter: ${harbor.name}</h4>
-                            <p class="text-[10px] text-slate-200 mt-0.5">Dra meg dit du vil og klikk "Lagre endringer" til venstre.</p>
-                        </div>
-                    `).openPopup();
-
-                    // Real-time coordinates reflection
-                    marker.on('drag', function(event) {
-                        const pos = event.target.getLatLng();
-                        document.getElementById('new-harbor-lat').value = pos.lat.toFixed(5);
-                        document.getElementById('new-harbor-lng').value = pos.lng.toFixed(5);
-                    });
-
-                    marker.on('dragend', function(event) {
-                        const pos = event.target.getLatLng();
-                        showToast(`Posisjonen til "${harbor.name}" er flyttet på kartet. Husk å trykke på "Lagre endringer"!`, "info");
-                    });
-
-                    dbMapMarkers.push(marker);
-                } else {
-                    // Normal static circle markers for everything else
-                    const markerColor = isPlanned ? "#10b981" : "#64748b";
-                    const markerRadius = isPlanned ? 8 : 6;
-
-                    const marker = L.circleMarker([harbor.lat, harbor.lng], {
-                        radius: markerRadius,
-                        fillColor: markerColor,
-                        color: "#ffffff",
-                        weight: 1.5,
-                        fillOpacity: 0.8
-                    }).addTo(dbMap);
-
-                    marker.bindPopup(`
-                        <div class="p-1">
-                            <h4 class="font-bold text-sm text-white">${harbor.name}</h4>
-                            <p class="text-[10px] text-sky-200 mt-0.5">${harbor.guideName || ''}</p>
-                            <p class="text-[10px] text-teal-400 font-bold uppercase tracking-wider mt-1">${isPlanned ? '📅 Planlagt i rute' : 'Klar for utvalg'}</p>
-                        </div>
-                    `);
-
-                    dbMapMarkers.push(marker);
-                }
-            });
-        }
-
-        function initializeDatePicker() {
-            try {
-                flatpickr("#input-start-date", {
-                    locale: "no",
-                    dateFormat: "d/m/Y",
-                    defaultDate: parseDateString(state.startDate),
-                    onChange: function(selectedDates, dateStr) {
-                        state.startDate = dateStr;
-                        persistState();
-                        fetchStatus = {};
-                        liveWeatherData = {};
-                        renderAll();
-                    }
-                });
-            } catch (e) {
-                console.error("Flatpickr initialization failed", e);
-            }
-        }
-
-        function getWeatherIconClass(weather) {
-            const sym = weather.symbolCode || "";
-            if (sym.includes("rain") || sym.includes("showers")) {
-                return "fa-cloud-showers-heavy text-sky-400";
-            }
-            if (sym.includes("sleet") || sym.includes("snow")) {
-                return "fa-snowflake text-teal-300";
-            }
-            if (sym.includes("cloud") || sym.includes("partlycloudy")) {
-                return "fa-cloud-sun text-slate-400";
-            }
-            if (sym.includes("clearsky") || sym.includes("fair")) {
-                return "fa-sun text-amber-400";
-            }
-            if (weather.condition === "Rainy") return "fa-cloud-showers-heavy text-sky-400";
-            if (weather.condition === "Cloudy") return "fa-cloud text-slate-400";
-            if (weather.condition === "Windy") return "fa-wind text-teal-400";
-            return "fa-sun text-amber-400";
-        }
-
-        function renderAll() {
-            document.getElementById("input-start-date").value = state.startDate;
-            document.getElementById("input-speed-knots").value = state.speedKnots;
-
-            let totalNM = 0;
-            let totalKM = 0;
-            let rainAlerts = 0;
-            let windAlerts = 0;
-            const calculatedDistances = [];
-            const weatherSnapshots = [];
-
-            state.routeDays.forEach((day, i) => {
-                const liveKey = `${i}_${day.harborId}`;
-                let weather;
-
-                if (day.customWeather) {
-                    weather = day.customWeather;
-                } else if (liveWeatherData[liveKey]) {
-                    weather = liveWeatherData[liveKey];
-                } else {
-                    weather = generateWeather(day.harborId, i);
-                    if (!fetchStatus[liveKey]) {
-                        fetchMETWeather(i, day.harborId);
-                    }
-                }
-
-                weatherSnapshots.push(weather);
-
-                if (weather.condition === "Rainy" || weather.rainAmount > 0) rainAlerts++;
-                if (weather.windSpeed !== null && (weather.windSpeed > 7 || weather.gusts > 10)) windAlerts++;
-
-                if (i === 0) {
-                    calculatedDistances.push({ nm: 0, km: 0 });
-                } else {
-                    const prevHarbor = state.harbors.find(h => h.id === state.routeDays[i-1].harborId);
-                    const currHarbor = state.harbors.find(h => h.id === day.harborId);
-                    if (prevHarbor && currHarbor) {
-                        const dist = calculateDistance(prevHarbor.lat, prevHarbor.lng, currHarbor.lat, currHarbor.lng);
-                        totalNM += dist.nm;
-                        totalKM += dist.km;
-                        calculatedDistances.push(dist);
-                    } else {
-                        calculatedDistances.push({ nm: 0, km: 0 });
-                    }
-                }
-            });
-
-            const totalHours = totalNM / state.speedKnots;
-
-            document.getElementById("stat-days").innerText = `${state.routeDays.length} Dager`;
-            document.getElementById("stat-distance").innerText = `${totalNM.toFixed(1)} NM (~${formatDuration(totalHours)})`;
-            document.getElementById("stat-wind-alerts").innerText = `${windAlerts} dager`;
-            document.getElementById("stat-rain-alerts").innerText = `${rainAlerts} dager`;
-
-            renderSavedRoutesList();
-
-            const container = document.getElementById("day-cards-container");
-            container.innerHTML = "";
-
-            state.routeDays.forEach((day, index) => {
-                const harbor = state.harbors.find(h => h.id === day.harborId) || state.harbors[0];
+                const harbor = HARBORS_DATABASE.find(h => h.id === day.harborId) || HARBORS_DATABASE[0];
                 const weather = weatherSnapshots[index];
                 const distance = calculatedDistances[index];
-                const hours = distance.nm / state.speedKnots;
 
                 const isRainy = weather.condition === "Rainy" || weather.rainAmount > 0;
-                const isWindy = weather.windSpeed !== null && weather.windSpeed > 7;
-                const isGusty = weather.gusts !== null && weather.gusts > 10;
+                const isWindy = weather.windSpeed > 7;
+                const isGusty = weather.gusts > 10;
                 const hasWarnings = isRainy || isWindy || isGusty;
                 const isBooked = !!day.booked;
 
+                // Dinners drop-down list
                 let dinnerOptions = state.dinners.map(din => `
                     <option value="${din}" ${day.dinner === din ? 'selected' : ''}>${din}</option>
                 `).join('');
@@ -1876,7 +1618,8 @@
                     weatherBadgeHtml = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-semibold"><i class="fa-solid fa-triangle-exclamation"></i> ⏳ Simulert (Utenfor live-periode)</span>`;
                 }
 
-                const windDisplay = weather.windSpeed !== null ? `${weather.windSpeed} m/s (${weather.windDir || ''})` : `<span class="text-slate-500 italic" title="Vinddata er ikke tilgjengelig i subseasonal-modell">-</span>`;
+                const windArrow = getWindArrowHtml(weather.windDir);
+                const windDisplay = weather.windSpeed !== null ? `${weather.windSpeed} m/s (${weather.windDir || ''}) ${windArrow}` : `<span class="text-slate-500 italic" title="Vinddata er ikke tilgjengelig i subseasonal-modell">-</span>`;
                 const gustsDisplay = weather.gusts !== null ? `${weather.gusts} m/s` : `<span class="text-slate-500 italic" title="Vinddata er ikke tilgjengelig i subseasonal-modell">-</span>`;
 
                 const legInfo = index === 0 ? 'Startsted' : `${distance.nm.toFixed(1)} NM (${distance.km.toFixed(0)} km) · ~${formatDuration(hours)} i ${state.speedKnots} knop`;
@@ -2134,11 +1877,13 @@
             const printTimeline = document.getElementById("print-timeline-container");
             printTimeline.innerHTML = "";
             state.routeDays.forEach((day, i) => {
-                const harbor = state.harbors.find(h => h.id === day.harborId) || state.harbors[0];
+                const harbor = HARBORS_DATABASE.find(h => h.id === day.harborId) || HARBORS_DATABASE[0];
                 const weather = weatherSnapshots[i];
                 const distance = calculatedDistances[i];
                 const hours = distance.nm / state.speedKnots;
                 const isBooked = !!day.booked;
+
+                const windArrowPrint = getWindArrowHtml(weather.windDir);
 
                 const dayHtml = `
                     <div class="p-4 bg-white border border-slate-300 rounded-xl space-y-2 text-slate-900 ${isBooked ? 'border-l-4 border-l-emerald-500' : ''}">
@@ -2161,7 +1906,7 @@
                             </div>
                             <div>
                                 <span class="block text-[10px] text-slate-400 font-bold uppercase">Melding</span>
-                                <span class="font-medium text-slate-700 block">${weather.temp}°C, vind ${weather.windSpeed !== null ? weather.windSpeed + ' m/s' : '-'}, kast ${weather.gusts !== null ? weather.gusts + ' m/s' : '-'}. ${weather.isLive ? (weather.isSubseasonal ? '(21-dagers MET)' : '(Live MET)') : '(Simulert)'}</span>
+                                <span class="font-medium text-slate-700 block">${weather.temp}°C, vind ${weather.windSpeed !== null ? weather.windSpeed + ' m/s ' + (weather.windDir ? '(' + weather.windDir + ') ' + windArrowPrint : '') : '-'}, kast ${weather.gusts !== null ? weather.gusts + ' m/s' : '-'}. ${weather.isLive ? (weather.isSubseasonal ? '(21-dagers MET)' : '(Live MET)') : '(Simulert)'}</span>
                             </div>
                         </div>
                         ${day.customNotes ? `
