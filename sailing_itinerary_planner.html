@@ -379,29 +379,103 @@
             <div id="dinners-list-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         </div>
 
-        <!-- TAB 3: HAVNEGUIDE DATABASE -->
-        <div id="tab-content-database" class="hidden bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xl space-y-6 no-print">
-            <div>
-                <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                    <i class="fa-solid fa-anchor text-teal-400"></i>
-                    Søkbart Havnearkiv (Ruteplan)
-                </h2>
-                <p class="text-xs text-slate-400 mt-1">Oversikt over mulige havner med direktelinker til havneguider, værmeldinger og live kameraer.</p>
+        <!-- TAB 3: HAVNEGUIDE DATABASE (NEW UPDATED LAYOUT WITH MAP AND FORM) -->
+        <div id="tab-content-database" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-start no-print">
+            
+            <!-- LEFT PANEL: REGISTRATION & MAP -->
+            <div class="lg:col-span-5 space-y-6">
+                <!-- ADD CUSTOM HARBOR FORM -->
+                <div class="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-lg space-y-4">
+                    <h3 class="font-bold text-lg text-white border-b border-slate-800 pb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-plus text-teal-400"></i>
+                        Legg til ny havn i arkivet
+                    </h3>
+                    <p class="text-xs text-slate-400 leading-normal">Fyll ut infoen under, eller <strong>klikk direkte på kartet</strong> under for å fylle inn koordinatene automatisk!</p>
+                    
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1">Havnenavn*</label>
+                            <input type="text" id="new-harbor-name" placeholder="F.eks. Strømstad, Sandspollen..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:ring-2 focus:ring-teal-500 outline-none" />
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Breddegrad (Lat)*</label>
+                                <input type="number" step="0.00001" id="new-harbor-lat" placeholder="F.eks. 59.1234" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:ring-2 focus:ring-teal-500 outline-none" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Lengdegrad (Lng)*</label>
+                                <input type="number" step="0.00001" id="new-harbor-lng" placeholder="F.eks. 10.5678" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:ring-2 focus:ring-teal-500 outline-none" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1">Beskrivelse / Havneguidenavn</label>
+                            <input type="text" id="new-harbor-guide-name" placeholder="F.eks. Gjestebrygge, foreningshavn..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:ring-2 focus:ring-teal-500 outline-none" />
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1">Link til Havneguide (Norsk)</label>
+                            <input type="url" id="new-harbor-guide-url" placeholder="https://harbourguide.com/..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:ring-2 focus:ring-teal-500 outline-none" />
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Webkamera URL</label>
+                                <input type="url" id="new-harbor-webcam-url" placeholder="https://..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:ring-2 focus:ring-teal-500 outline-none" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Yr-varsel URL</label>
+                                <input type="url" id="new-harbor-yr-url" placeholder="https://www.yr.no/..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:ring-2 focus:ring-teal-500 outline-none" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="addNewCustomHarbor()" class="w-full py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl text-sm font-extrabold transition duration-200 shadow-md">
+                        Lagre havn i arkivet
+                    </button>
+                </div>
+
+                <!-- NEW HARBORS DATABASE MAP -->
+                <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-lg flex flex-col">
+                    <div class="p-4 bg-slate-900 border-b border-slate-800 flex justify-between items-center">
+                        <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                            <i class="fa-solid fa-map-marked-alt text-teal-400"></i>
+                            Oversiktskart over alle havner
+                        </h3>
+                    </div>
+                    <div id="harbors-db-map" class="h-[300px] w-full bg-marine-950"></div>
+                    <div class="p-3 bg-slate-950 text-[11px] text-slate-400 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-dot text-teal-400 animate-pulse"></i>
+                        <span>Klikk hvor som helst i kartet for å hente ut koordinater til skjemaet.</span>
+                    </div>
+                </div>
             </div>
 
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm text-slate-300">
-                    <thead class="text-xs text-slate-400 uppercase bg-slate-950 border border-slate-800">
-                        <tr>
-                            <th scope="col" class="px-4 py-3">Havnestad</th>
-                            <th scope="col" class="px-4 py-3">Posisjon</th>
-                            <th scope="col" class="px-4 py-3">Norsk Havneguide</th>
-                            <th scope="col" class="px-4 py-3">Live Webkamera</th>
-                            <th scope="col" class="px-4 py-3">Yr-varsel</th>
-                        </tr>
-                    </thead>
-                    <tbody id="harbor-table-body"></tbody>
-                </table>
+            <!-- RIGHT PANEL: HARBORS TABLE LIST -->
+            <div class="lg:col-span-7 bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xl space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-anchor text-teal-400"></i>
+                        Søkbart Havnearkiv (Ruteplan)
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Oversikt over mulige havner med direktelinker til havneguider, værmeldinger og live kameraer.</p>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-300">
+                        <thead class="text-xs text-slate-400 uppercase bg-slate-950 border border-slate-800">
+                            <tr>
+                                <th scope="col" class="px-4 py-3">Havnestad</th>
+                                <th scope="col" class="px-4 py-3">Posisjon</th>
+                                <th scope="col" class="px-4 py-3">Norsk Havneguide</th>
+                                <th scope="col" class="px-4 py-3">Live Webkamera</th>
+                                <th scope="col" class="px-4 py-3">Yr-varsel</th>
+                            </tr>
+                        </thead>
+                        <tbody id="harbor-table-body"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -484,7 +558,6 @@
 
     <!-- VANILLA JS ENGINE -->
     <script>
-        // 1. HARDCODED HARBORS DATABASE (BASED EXACTLY ON USER CSV)
         const HARBORS_DATABASE = [
             { id: "saetre", name: "Sætre", lat: 59.6806, lng: 10.5186, guideName: "Sætre Havn", guideUrl: "https://harbourguide.com/no/search?q=Sætre", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-2746404/Norge/Viken/Asker/S%C3%A6tre" },
             { id: "horten", name: "Horten", lat: 59.4128, lng: 10.4900, guideName: "Sykehusbrygga", guideUrl: "https://harbourguide.com/no/search?q=Sykehusbrygga", webcamUrl: "https://nettkamera.cid.no/hortenIndreHavn/max.jpg", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-2826417/Norge/Vestfold/Horten/Horten" },
@@ -525,7 +598,6 @@
             "Hamburger"
         ];
 
-        // 3. APPLICATION STATE
         let state = {
             startDate: "24/07/2026",
             dinners: [...DEFAULT_DINNERS],
@@ -535,11 +607,11 @@
                 { dateOffset: 2, harborId: "bolaerne", dinner: "Hamburger", customNotes: "Fin natursti her.", customWeather: null, booked: false },
                 { dateOffset: 3, harborId: "skjaerhalden", dinner: "Fiskeburger", customNotes: "Krysser fjorden i dag.", customWeather: null, booked: true }
             ],
+            harbors: [...HARBORS_DATABASE], // Made dynamic so users can expand it
             selectedTab: "planner"
         };
 
         // Cache for live fetched MET weather data
-        // Key format: "index_harborId" -> weather object
         let liveWeatherData = {};
         let fetchStatus = {}; // "loading", "success", "error", "out_of_range"
 
@@ -547,6 +619,11 @@
         let map = null;
         let mapMarkers = [];
         let mapPolyline = null;
+
+        // Harbor Database Map variables
+        let dbMap = null;
+        let dbMapMarkers = [];
+        let dbTempMarker = null;
 
         function safeLocalStorageGet(key, fallback) {
             try {
@@ -563,19 +640,14 @@
             } catch (e) {}
         }
 
-        // Parse date adaptively (supports standard dash and slashes format)
         function parseDateString(dateStr) {
             if (!dateStr) return new Date();
-            
-            // If already in DD/MM/YYYY format
             if (dateStr.includes("/")) {
                 const parts = dateStr.split("/");
                 if (parts.length === 3) {
                     return new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
                 }
             }
-            
-            // If in legacy YYYY-MM-DD format
             if (dateStr.includes("-")) {
                 const parts = dateStr.split("-");
                 if (parts.length === 3) {
@@ -589,7 +661,6 @@
             return new Date(dateStr);
         }
 
-        // Formats date string to DD/MM/YYYY standard output
         function formatToNorwegianShortString(dateObj) {
             const day = String(dateObj.getDate()).padStart(2, '0');
             const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -597,14 +668,12 @@
             return `${day}/${month}/${year}`;
         }
 
-        // Compass conversion for wind degrees (8 cardinal points)
         function degToCompass(num) {
             const val = Math.floor((num / 45) + 0.5);
             const arr = ["N", "NØ", "Ø", "SØ", "S", "SV", "V", "NV"];
             return arr[(val % 8)];
         }
 
-        // Floating premium system notification toast
         function showToast(message, type = "error") {
             const toast = document.createElement("div");
             toast.className = `fixed bottom-5 right-5 z-[10000] p-4 rounded-xl shadow-2xl transition-all duration-300 transform translate-y-10 opacity-0 border text-sm font-bold flex items-center gap-2 ${
@@ -617,19 +686,16 @@
             toast.innerHTML = `<i class="fa-solid ${type === 'error' ? 'fa-circle-exclamation' : type === 'info' ? 'fa-spinner animate-spin' : 'fa-circle-check'}"></i> <span>${message}</span>`;
             document.body.appendChild(toast);
             
-            // Trigger transition
             setTimeout(() => {
                 toast.classList.remove("translate-y-10", "opacity-0");
             }, 10);
             
-            // Fade out and remove
             setTimeout(() => {
                 toast.classList.add("translate-y-10", "opacity-0");
                 setTimeout(() => toast.remove(), 300);
             }, 3500);
         }
 
-        // Fetch Live Weather directly from MET Norway API (Locationforecast or Subseasonal)
         async function fetchMETWeather(index, harborId) {
             const key = `${index}_${harborId}`;
             if (fetchStatus[key] === "loading" || fetchStatus[key] === "success") return;
@@ -656,7 +722,7 @@
                 return;
             }
 
-            const harbor = HARBORS_DATABASE.find(h => h.id === harborId);
+            const harbor = state.harbors.find(h => h.id === harborId);
             if (!harbor) return;
 
             fetchStatus[key] = "loading";
@@ -670,7 +736,6 @@
                     url = `https://api.met.no/weatherapi/subseasonal/1.0/complete?lat=${harbor.lat.toFixed(4)}&lon=${harbor.lng.toFixed(4)}`;
                 }
 
-                // Identify client responsibly in accordance with MET Terms of Service
                 const response = await fetch(url, {
                     headers: {
                         'User-Agent': 'SailingItineraryPlanner2026/1.0 (sailing@example.com)'
@@ -698,13 +763,11 @@
                                 bestEntry = entry;
                             }
                         } else {
-                            // Subseasonal delivers daily objects directly
                             bestEntry = entry;
                         }
                     }
                 });
 
-                // Fallback to closest timeseries if exact day is edge case
                 if (!bestEntry) {
                     timeseries.forEach(entry => {
                         const entryDate = new Date(entry.time);
@@ -747,7 +810,6 @@
                             isSubseasonal: false
                         };
                     } else {
-                        // Subseasonal parsing (Next 24 hours block)
                         const details = bestEntry.data.next_24_hours ? bestEntry.data.next_24_hours.details : null;
                         if (details) {
                             const temp = details.air_temperature_mean !== undefined ? details.air_temperature_mean : (details.air_temperature_max || 15);
@@ -755,7 +817,7 @@
 
                             liveWeatherData[key] = {
                                 temp: parseFloat(temp.toFixed(1)),
-                                windSpeed: null, // Wind is not defined in Subseasonal MET outputs
+                                windSpeed: null,
                                 gusts: null,
                                 condition: rainAmount > 1.0 ? "Rainy" : "Sunny",
                                 rainAmount: parseFloat(rainAmount.toFixed(1)),
@@ -793,12 +855,10 @@
             }
         }
 
-        // Initialize state on load
         function loadSavedState() {
             try {
                 const savedDate = localStorage.getItem("seil_startDate");
                 if (savedDate) {
-                    // Adapt legacy dash layout to norwegian format if necessary
                     if (savedDate.includes("-") && !savedDate.includes("/")) {
                         const parsed = parseDateString(savedDate);
                         state.startDate = formatToNorwegianShortString(parsed);
@@ -812,6 +872,9 @@
 
                 const savedRoute = localStorage.getItem("seil_routeDays");
                 if (savedRoute) state.routeDays = JSON.parse(savedRoute);
+
+                const savedHarbors = localStorage.getItem("seil_harbors");
+                if (savedHarbors) state.harbors = JSON.parse(savedHarbors);
             } catch (e) {}
         }
 
@@ -819,23 +882,22 @@
             safeLocalStorageSet("seil_startDate", state.startDate);
             safeLocalStorageSet("seil_dinners", state.dinners);
             safeLocalStorageSet("seil_routeDays", state.routeDays);
+            safeLocalStorageSet("seil_harbors", state.harbors);
         }
 
-        // Utility to realign all date offsets sequentially
         function realignOffsets() {
             state.routeDays.forEach((day, i) => {
                 day.dateOffset = i;
             });
         }
 
-        // Inserts a new day directly after the given index
         function insertDayAfter(index) {
             const currentDay = state.routeDays[index];
-            const nextHarbor = currentDay ? currentDay.harborId : HARBORS_DATABASE[0].id;
+            const nextHarbor = currentDay ? currentDay.harborId : state.harbors[0].id;
             const nextDinner = state.dinners[(index + 1) % state.dinners.length] || "";
 
             state.routeDays.splice(index + 1, 0, {
-                dateOffset: 0, // reassigned below
+                dateOffset: 0,
                 harborId: nextHarbor,
                 dinner: nextDinner,
                 customNotes: "",
@@ -848,16 +910,14 @@
             renderAll();
         }
 
-        // Toggles booking lock for a given day
         function toggleBooked(index, isBooked) {
             state.routeDays[index].booked = isBooked;
             persistState();
             renderAll();
         }
 
-        // Calculate Haversine distance
         function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Earth radius in km
+            const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = 
@@ -869,7 +929,6 @@
             return { km, nm };
         }
 
-        // Format dates into written Norwegian language
         function formatNorwegianDate(dateStr, offset) {
             const d = parseDateString(dateStr);
             d.setDate(d.getDate() + offset);
@@ -880,7 +939,6 @@
             return `${days[d.getDay()]} ${d.getDate()}. ${months[d.getMonth()]} ${d.getFullYear()}`;
         }
 
-        // Deterministic fallback weather generator based on harbor & index (when outside MET's forecast date window)
         function generateWeather(harborId, index) {
             const cleanId = String(harborId || "saetre");
             const seed = (cleanId.charCodeAt(0) + index * 13) % 100;
@@ -903,7 +961,6 @@
         function updateStartDate(val) {
             state.startDate = val;
             persistState();
-            // Clear weather loading cache for recalculation
             fetchStatus = {};
             liveWeatherData = {};
             renderAll();
@@ -912,13 +969,11 @@
         function switchTab(tabId) {
             state.selectedTab = tabId;
             
-            // Toggle visibility of standard content tabs
             document.getElementById("tab-content-planner").classList.add("hidden");
             document.getElementById("tab-content-dinners").classList.add("hidden");
             document.getElementById("tab-content-database").classList.add("hidden");
             document.getElementById("tab-content-summary").classList.add("hidden");
 
-            // Toggle active styles on buttons
             document.querySelectorAll("nav button").forEach(btn => {
                 btn.className = "px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition duration-200 flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-900";
             });
@@ -937,13 +992,22 @@
                 setTimeout(() => { map.invalidateSize(); }, 150);
             }
 
+            if (tabId === "database") {
+                setTimeout(() => { 
+                    initializeHarborMap();
+                    if (dbMap) {
+                        dbMap.invalidateSize();
+                        drawDatabaseMapRoutes();
+                    }
+                }, 150);
+            }
+
             renderAll();
         }
 
         function updateDayHarbor(index, harborId) {
             state.routeDays[index].harborId = harborId;
             persistState();
-            // Invalidate weather status for this card so it fetches MET coordinates afresh
             const key = `${index}_${harborId}`;
             delete fetchStatus[key];
             delete liveWeatherData[key];
@@ -962,7 +1026,6 @@
         }
 
         function updateWeatherSlider(index, key, value) {
-            // Initialize slider simulator on top of actual/fallback weather
             const currentHarborId = state.routeDays[index].harborId;
             const liveKey = `${index}_${currentHarborId}`;
             const baseWeather = liveWeatherData[liveKey] || generateWeather(currentHarborId, index);
@@ -984,7 +1047,7 @@
         function addNewDay() {
             const lastDay = state.routeDays[state.routeDays.length - 1];
             const nextOffset = lastDay ? lastDay.dateOffset + 1 : 0;
-            const nextHarbor = lastDay ? lastDay.harborId : HARBORS_DATABASE[0].id;
+            const nextHarbor = lastDay ? lastDay.harborId : state.harbors[0].id;
 
             state.routeDays.push({
                 dateOffset: nextOffset,
@@ -1007,10 +1070,7 @@
             }
             if (state.routeDays.length <= 1) return;
             state.routeDays.splice(index, 1);
-            
-            // Realign offsets
             realignOffsets();
-
             persistState();
             renderAll();
         }
@@ -1022,7 +1082,6 @@
             const targetIndex = direction === 'up' ? index - 1 : index + 1;
             const temp = { ...state.routeDays[index] };
             
-            // Swap details except the offset
             state.routeDays[index].harborId = state.routeDays[targetIndex].harborId;
             state.routeDays[index].dinner = state.routeDays[targetIndex].dinner;
             state.routeDays[index].customNotes = state.routeDays[targetIndex].customNotes;
@@ -1037,7 +1096,6 @@
             renderAll();
         }
 
-        // Reset Modals
         function showResetConfirmation() {
             document.getElementById("reset-modal").classList.remove("hidden");
         }
@@ -1052,6 +1110,64 @@
             ];
             persistState();
             closeResetModal();
+            renderAll();
+        }
+
+        function addNewCustomHarbor() {
+            const nameEl = document.getElementById("new-harbor-name");
+            const latEl = document.getElementById("new-harbor-lat");
+            const lngEl = document.getElementById("new-harbor-lng");
+            const descEl = document.getElementById("new-harbor-guide-name");
+            const guideEl = document.getElementById("new-harbor-guide-url");
+            const webcamEl = document.getElementById("new-harbor-webcam-url");
+            const yrEl = document.getElementById("new-harbor-yr-url");
+
+            const name = nameEl.value.trim();
+            const lat = parseFloat(latEl.value);
+            const lng = parseFloat(lngEl.value);
+
+            if (!name || isNaN(lat) || isNaN(lng)) {
+                showToast("Vennligst oppgi navn, gyldig breddegrad og lengdegrad.", "error");
+                return;
+            }
+
+            const cleanId = name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+
+            if (state.harbors.some(h => h.id === cleanId)) {
+                showToast("En havn med lignende id eller navn finnes allerede.", "error");
+                return;
+            }
+
+            const newHarbor = {
+                id: cleanId,
+                name: name,
+                lat: lat,
+                lng: lng,
+                guideName: descEl.value.trim() || name,
+                guideUrl: guideEl.value.trim() || `https://harbourguide.com/no/search?q=${encodeURIComponent(name)}`,
+                webcamUrl: webcamEl.value.trim(),
+                yrUrl: yrEl.value.trim() || `https://www.yr.no/nb/søk?q=${encodeURIComponent(name)}`
+            };
+
+            state.harbors.push(newHarbor);
+            persistState();
+
+            // Reset inputs
+            nameEl.value = "";
+            latEl.value = "";
+            lngEl.value = "";
+            descEl.value = "";
+            guideEl.value = "";
+            webcamEl.value = "";
+            yrEl.value = "";
+
+            if (dbTempMarker) {
+                dbTempMarker.remove();
+                dbTempMarker = null;
+            }
+
+            showToast(`"${name}" ble lagt til i havnearkivet!`, "success");
+            drawDatabaseMapRoutes();
             renderAll();
         }
 
@@ -1072,7 +1188,8 @@
                 name: name,
                 startDate: state.startDate,
                 routeDays: JSON.parse(JSON.stringify(state.routeDays)),
-                dinners: JSON.parse(JSON.stringify(state.dinners))
+                dinners: JSON.parse(JSON.stringify(state.dinners)),
+                harbors: JSON.parse(JSON.stringify(state.harbors))
             };
             
             savedRoutes.push(newRoute);
@@ -1092,6 +1209,9 @@
             state.routeDays = JSON.parse(JSON.stringify(route.routeDays));
             if (route.dinners) {
                 state.dinners = JSON.parse(JSON.stringify(route.dinners));
+            }
+            if (route.harbors) {
+                state.harbors = JSON.parse(JSON.stringify(route.harbors));
             }
             
             persistState();
@@ -1136,7 +1256,6 @@
             `).join('');
         }
 
-        // Dinners addition
         function addDinnerIdea() {
             const input = document.getElementById("new-dinner-input");
             const val = input.value.trim();
@@ -1154,12 +1273,12 @@
             renderAll();
         }
 
-        // FILE BACKUP MECHANICS
         function exportToFile() {
             const dataToExport = {
                 startDate: state.startDate,
                 dinners: state.dinners,
                 routeDays: state.routeDays,
+                harbors: state.harbors,
                 savedRoutes: getSavedRoutes()
             };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
@@ -1188,6 +1307,7 @@
                             state.startDate = data.startDate || "24/07/2026";
                             state.routeDays = data.routeDays;
                             if (data.dinners) state.dinners = data.dinners;
+                            if (data.harbors) state.harbors = data.harbors;
                             if (data.savedRoutes) {
                                 safeLocalStorageSet("seil_saved_routes", data.savedRoutes);
                             }
@@ -1205,9 +1325,8 @@
             reader.readAsText(file);
         }
 
-        // CLOUD SYNCHRONIZATION VIA ANONYMOUS KV ENDPOINT
         function generateSyncCode() {
-            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No confusing chars like 0, O, I, 1
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
             let code = '';
             for (let i = 0; i < 6; i++) {
                 code += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -1221,11 +1340,11 @@
                 startDate: state.startDate,
                 dinners: state.dinners,
                 routeDays: state.routeDays,
+                harbors: state.harbors,
                 savedRoutes: getSavedRoutes()
             };
             try {
                 showToast("Kobler til skyen...", "info");
-                // Using a unique public bucket with random identifier
                 const response = await fetch(`https://kvdb.io/8D4fG7hS9jK2l5zX3c1v/seilferie_${code}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1273,6 +1392,7 @@
                         state.startDate = data.startDate || "24/07/2026";
                         state.routeDays = data.routeDays;
                         if (data.dinners) state.dinners = data.dinners;
+                        if (data.harbors) state.harbors = data.harbors;
                         if (data.savedRoutes) {
                             safeLocalStorageSet("seil_saved_routes", data.savedRoutes);
                         }
@@ -1300,7 +1420,6 @@
             showToast("Kode kopiert til utklippstavlen!", "success");
         }
 
-        // 6. MAP ENGINE FUNCTIONS
         function initializeMap() {
             try {
                 if (map) return;
@@ -1321,7 +1440,6 @@
         function drawMapRoute() {
             if (!map) return;
 
-            // Clear markers
             mapMarkers.forEach(m => m.remove());
             mapMarkers = [];
 
@@ -1332,18 +1450,15 @@
 
             const pathCoords = [];
 
-            // Add planned path
             state.routeDays.forEach((day, index) => {
-                const harbor = HARBORS_DATABASE.find(h => h.id === day.harborId);
+                const harbor = state.harbors.find(h => h.id === day.harborId);
                 if (harbor) {
                     pathCoords.push([harbor.lat, harbor.lng]);
 
-                    // Stylize booked harbor markers dynamically in green, regular in cyan
                     const markerColor = day.booked ? "#10b981" : "#0ea5e9";
                     const markerWeight = day.booked ? 3 : 2;
                     const markerRadius = day.booked ? 10 : 8;
 
-                    // Create marker
                     const marker = L.circleMarker([harbor.lat, harbor.lng], {
                         radius: markerRadius,
                         fillColor: markerColor,
@@ -1366,7 +1481,6 @@
                 }
             });
 
-            // Draw line
             if (pathCoords.length > 1) {
                 mapPolyline = L.polyline(pathCoords, {
                     color: '#14b8a6',
@@ -1381,11 +1495,88 @@
             }
         }
 
+        function initializeHarborMap() {
+            try {
+                if (dbMap) return;
+                dbMap = L.map('harbors-db-map', {
+                    center: [59.2, 10.7],
+                    zoom: 8,
+                    zoomControl: true,
+                });
+
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+                }).addTo(dbMap);
+
+                // Add map click listener to automatically capture coordinates
+                dbMap.on('click', function(e) {
+                    document.getElementById('new-harbor-lat').value = e.latlng.lat.toFixed(5);
+                    document.getElementById('new-harbor-lng').value = e.latlng.lng.toFixed(5);
+                    
+                    if (dbTempMarker) {
+                        dbTempMarker.setLatLng(e.latlng);
+                    } else {
+                        dbTempMarker = L.marker(e.latlng, {
+                            draggable: true,
+                            icon: L.divIcon({
+                                html: '<i class="fa-solid fa-crosshairs text-rose-500 text-2xl"></i>',
+                                iconSize: [24, 24],
+                                iconAnchor: [12, 12]
+                            })
+                        }).addTo(dbMap);
+
+                        dbTempMarker.on('dragend', function(event) {
+                            const marker = event.target;
+                            const position = marker.getLatLng();
+                            document.getElementById('new-harbor-lat').value = position.lat.toFixed(5);
+                            document.getElementById('new-harbor-lng').value = position.lng.toFixed(5);
+                        });
+                    }
+
+                    showToast("Posisjon markert på kartet!", "info");
+                });
+
+            } catch (e) {
+                console.error("Harbors Database Map initialization failed", e);
+            }
+        }
+
+        function drawDatabaseMapRoutes() {
+            if (!dbMap) return;
+
+            dbMapMarkers.forEach(m => m.remove());
+            dbMapMarkers = [];
+
+            state.harbors.forEach(harbor => {
+                const isPlanned = state.routeDays.some(d => d.harborId === harbor.id);
+                const markerColor = isPlanned ? "#10b981" : "#64748b";
+                const markerRadius = isPlanned ? 8 : 6;
+
+                const marker = L.circleMarker([harbor.lat, harbor.lng], {
+                    radius: markerRadius,
+                    fillColor: markerColor,
+                    color: "#ffffff",
+                    weight: 1.5,
+                    fillOpacity: 0.8
+                }).addTo(dbMap);
+
+                marker.bindPopup(`
+                    <div class="p-1">
+                        <h4 class="font-bold text-sm text-white">${harbor.name}</h4>
+                        <p class="text-[10px] text-sky-200 mt-0.5">${harbor.guideName || ''}</p>
+                        <p class="text-[10px] text-teal-400 font-bold uppercase tracking-wider mt-1">${isPlanned ? '📅 Planlagt i rute' : 'Klar for utvalg'}</p>
+                    </div>
+                `);
+
+                dbMapMarkers.push(marker);
+            });
+        }
+
         function initializeDatePicker() {
             try {
                 flatpickr("#input-start-date", {
                     locale: "no",
-                    dateFormat: "d/m/Y", // Norwegian formatting
+                    dateFormat: "d/m/Y",
                     defaultDate: parseDateString(state.startDate),
                     onChange: function(selectedDates, dateStr) {
                         state.startDate = dateStr;
@@ -1400,7 +1591,6 @@
             }
         }
 
-        // Return appropriate FontAwesome weather icon depending on condition or MET symbol
         function getWeatherIconClass(weather) {
             const sym = weather.symbolCode || "";
             if (sym.includes("rain") || sym.includes("showers")) {
@@ -1415,20 +1605,15 @@
             if (sym.includes("clearsky") || sym.includes("fair")) {
                 return "fa-sun text-amber-400";
             }
-            
-            // Standard condition fallbacks
             if (weather.condition === "Rainy") return "fa-cloud-showers-heavy text-sky-400";
             if (weather.condition === "Cloudy") return "fa-cloud text-slate-400";
             if (weather.condition === "Windy") return "fa-wind text-teal-400";
             return "fa-sun text-amber-400";
         }
 
-        // 7. COMPONENT RENDERING
         function renderAll() {
-            // Update Date input value (just in case)
             document.getElementById("input-start-date").value = state.startDate;
 
-            // Metrics variables
             let totalNM = 0;
             let totalKM = 0;
             let rainAlerts = 0;
@@ -1436,7 +1621,6 @@
             const calculatedDistances = [];
             const weatherSnapshots = [];
 
-            // Calculate day distances and evaluate warnings
             state.routeDays.forEach((day, i) => {
                 const liveKey = `${i}_${day.harborId}`;
                 let weather;
@@ -1447,7 +1631,6 @@
                     weather = liveWeatherData[liveKey];
                 } else {
                     weather = generateWeather(day.harborId, i);
-                    // Trigger MET fetch in background asynchronously if outside range is not yet verified
                     if (!fetchStatus[liveKey]) {
                         fetchMETWeather(i, day.harborId);
                     }
@@ -1461,8 +1644,8 @@
                 if (i === 0) {
                     calculatedDistances.push({ nm: 0, km: 0 });
                 } else {
-                    const prevHarbor = HARBORS_DATABASE.find(h => h.id === state.routeDays[i-1].harborId);
-                    const currHarbor = HARBORS_DATABASE.find(h => h.id === day.harborId);
+                    const prevHarbor = state.harbors.find(h => h.id === state.routeDays[i-1].harborId);
+                    const currHarbor = state.harbors.find(h => h.id === day.harborId);
                     if (prevHarbor && currHarbor) {
                         const dist = calculateDistance(prevHarbor.lat, prevHarbor.lng, currHarbor.lat, currHarbor.lng);
                         totalNM += dist.nm;
@@ -1474,21 +1657,18 @@
                 }
             });
 
-            // Update stats
             document.getElementById("stat-days").innerText = `${state.routeDays.length} Dager`;
             document.getElementById("stat-distance").innerText = `${totalNM.toFixed(1)} NM (${totalKM.toFixed(0)} km)`;
             document.getElementById("stat-wind-alerts").innerText = `${windAlerts} dager`;
             document.getElementById("stat-rain-alerts").innerText = `${rainAlerts} dager`;
 
-            // Render saved routes list
             renderSavedRoutesList();
 
-            // Render day cards
             const container = document.getElementById("day-cards-container");
             container.innerHTML = "";
 
             state.routeDays.forEach((day, index) => {
-                const harbor = HARBORS_DATABASE.find(h => h.id === day.harborId) || HARBORS_DATABASE[0];
+                const harbor = state.harbors.find(h => h.id === day.harborId) || state.harbors[0];
                 const weather = weatherSnapshots[index];
                 const distance = calculatedDistances[index];
 
@@ -1498,7 +1678,6 @@
                 const hasWarnings = isRainy || isWindy || isGusty;
                 const isBooked = !!day.booked;
 
-                // Dinners drop-down list
                 let dinnerOptions = state.dinners.map(din => `
                     <option value="${din}" ${day.dinner === din ? 'selected' : ''}>${din}</option>
                 `).join('');
@@ -1524,7 +1703,6 @@
                 const windDisplay = weather.windSpeed !== null ? `${weather.windSpeed} m/s (${weather.windDir || ''})` : `<span class="text-slate-500 italic" title="Vinddata er ikke tilgjengelig i subseasonal-modell">-</span>`;
                 const gustsDisplay = weather.gusts !== null ? `${weather.gusts} m/s` : `<span class="text-slate-500 italic" title="Vinddata er ikke tilgjengelig i subseasonal-modell">-</span>`;
 
-                // Build Day Card with conditional design classes based on booking status
                 const cardHtml = `
                     <div class="bg-slate-900 rounded-2xl border transition-all duration-300 overflow-hidden shadow-lg ${isBooked ? 'border-emerald-500/60 ring-2 ring-emerald-500/10' : hasWarnings ? 'border-amber-500/30 ring-1 ring-amber-500/10' : 'border-slate-800'} no-print">
                         <div class="bg-slate-900 border-b border-slate-800 px-5 py-4 flex flex-wrap items-center justify-between gap-3">
@@ -1559,7 +1737,6 @@
                                 <div>
                                     <div class="flex items-center justify-between mb-1.5">
                                         <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wide">Destinasjonshavn</label>
-                                        <!-- BOOKING TOGGLE SWITCH -->
                                         <label class="flex items-center gap-1.5 cursor-pointer select-none">
                                             <input type="checkbox" class="hidden" onchange="toggleBooked(${index}, this.checked)" ${isBooked ? 'checked' : ''} />
                                             <span class="text-[10px] font-bold flex items-center gap-1 ${isBooked ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'} transition">
@@ -1569,9 +1746,8 @@
                                         </label>
                                     </div>
                                     
-                                    <!-- Select harbor dropdown - Locked and protected if booked -->
                                     <select onchange="updateDayHarbor(${index}, this.value)" ${isBooked ? 'disabled' : ''} class="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-3 py-2 text-sm font-semibold focus:ring-2 focus:ring-teal-500 outline-none ${isBooked ? 'opacity-65 cursor-not-allowed border-emerald-950 text-emerald-100' : ''}">
-                                        ${HARBORS_DATABASE.map(h => `<option value="${h.id}" ${day.harborId === h.id ? 'selected':''}>${h.name}</option>`).join('')}
+                                        ${state.harbors.map(h => `<option value="${h.id}" ${day.harborId === h.id ? 'selected':''}>${h.name}</option>`).join('')}
                                     </select>
 
                                     ${isBooked ? `
@@ -1635,7 +1811,6 @@
                                     </div>
                                 </div>
 
-                                <!-- SAFETY NOTICES -->
                                 ${hasWarnings ? `
                                     <div class="flex flex-wrap gap-2 mt-2 bg-slate-900/80 p-2.5 rounded-lg border border-amber-500/10 text-xs">
                                         <span class="font-bold text-amber-400 flex items-center mr-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Risiko:</span>
@@ -1645,7 +1820,6 @@
                                     </div>
                                 ` : ''}
 
-                                <!-- CUSTOM TESTING RANGE SLIDERS -->
                                 <div class="pt-2 border-t border-slate-900">
                                     <details class="group">
                                         <summary class="list-none flex items-center justify-between cursor-pointer text-xs text-slate-500 font-semibold group-open:text-white">
@@ -1711,7 +1885,7 @@
             // Render Database Tab
             const tableBody = document.getElementById("harbor-table-body");
             tableBody.innerHTML = "";
-            HARBORS_DATABASE.forEach(h => {
+            state.harbors.forEach(h => {
                 const isPlanned = state.routeDays.some(d => d.harborId === h.id);
                 const rowHtml = `
                     <tr class="border-b border-slate-800/60 hover:bg-slate-950/40 transition">
@@ -1739,14 +1913,13 @@
             document.getElementById("print-total-days").innerText = `${state.routeDays.length} Dager`;
             document.getElementById("print-total-distance").innerText = `${totalNM.toFixed(1)} NM (${totalKM.toFixed(0)} km)`;
 
-            // Compile warnings
             const warningList = document.getElementById("print-warnings-list");
             warningList.innerHTML = "";
             let summaryWarningsCount = 0;
 
             state.routeDays.forEach((day, i) => {
                 const weather = weatherSnapshots[i];
-                const harbor = HARBORS_DATABASE.find(h => h.id === day.harborId) || HARBORS_DATABASE[0];
+                const harbor = state.harbors.find(h => h.id === day.harborId) || state.harbors[0];
 
                 const isRainy = weather.condition === "Rainy" || weather.rainAmount > 0;
                 const isWindy = weather.windSpeed !== null && weather.windSpeed > 7;
@@ -1773,11 +1946,10 @@
                 warningsContainer.classList.add("hidden");
             }
 
-            // Timeline container
             const printTimeline = document.getElementById("print-timeline-container");
             printTimeline.innerHTML = "";
             state.routeDays.forEach((day, i) => {
-                const harbor = HARBORS_DATABASE.find(h => h.id === day.harborId) || HARBORS_DATABASE[0];
+                const harbor = state.harbors.find(h => h.id === day.harborId) || state.harbors[0];
                 const weather = weatherSnapshots[i];
                 const distance = calculatedDistances[i];
                 const isBooked = !!day.booked;
@@ -1816,11 +1988,9 @@
                 printTimeline.insertAdjacentHTML('beforeend', dayHtml);
             });
 
-            // Update map path
             drawMapRoute();
         }
 
-        // 8. LIFECYCLE INITIALIZER ON DOM READY
         window.onload = function() {
             loadSavedState();
             initializeDatePicker();
