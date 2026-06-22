@@ -538,6 +538,11 @@
             selectedTab: "planner"
         };
 
+        // Cache for live fetched MET weather data
+        // Key format: "index_harborId" -> weather object
+        let liveWeatherData = {};
+        let fetchStatus = {}; // "loading", "success", "error", "out_of_range"
+
         // Map variables
         let map = null;
         let mapMarkers = [];
@@ -592,6 +597,13 @@
             return `${day}/${month}/${year}`;
         }
 
+        // Compass conversion for wind degrees (8 cardinal points)
+        function degToCompass(num) {
+            const val = Math.floor((num / 45) + 0.5);
+            const arr = ["N", "NØ", "Ø", "SØ", "S", "SV", "V", "NV"];
+            return arr[(val % 8)];
+        }
+
         // Floating premium system notification toast
         function showToast(message, type = "error") {
             const toast = document.createElement("div");
@@ -615,6 +627,131 @@
                 toast.classList.add("translate-y-10", "opacity-0");
                 setTimeout(() => toast.remove(), 300);
             }, 3500);
+        }
+
+        // Fetch Live Weather directly from MET Norway API
+        async function fetchMETWeather(index, harborId) {
+            const key = `${index}_${harborId}`;
+            if (fetchStatus[key] === "loading" || fetchStatus[key] === "success") return;
+
+            const day = state.routeDays[index];
+            if (!day) return;
+
+            const plannedDate = parseDateString(state.startDate);
+            plannedDate.setDate(plannedDate.getDate() + day.dateOffset);
+
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            // MET offers forecast up to 10 days out
+            const maxForecastDate = new Date();
+            maxForecastDate.setDate(maxForecastDate.getDate() + 10);
+            maxForecastDate.setHours(23,59,59,999);
+
+            const minForecastDate = new Date();
+            minForecastDate.setDate(minForecastDate.getDate() - 1); // Allow past day if still partially in sliding dataset
+
+            if (plannedDate < minForecastDate || plannedDate > maxForecastDate) {
+                fetchStatus[key] = "out_of_range";
+                return;
+            }
+
+            const harbor = HARBORS_DATABASE.find(h => h.id === harborId);
+            if (!harbor) return;
+
+            fetchStatus[key] = "loading";
+            renderWeatherBoxLoading(index);
+
+            try {
+                // Request locationforecast/2.0 from MET Norway
+                const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${harbor.lat.toFixed(4)}&lon=${harbor.lng.toFixed(4)}`;
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`MET Norway API status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const timeseries = data.properties.timeseries;
+
+                // Match timeseries closest to midday (12:00:00 UTC) on planned day
+                const targetDateStr = plannedDate.toISOString().split('T')[0];
+                let bestEntry = null;
+                let minDiff = Infinity;
+
+                timeseries.forEach(entry => {
+                    if (entry.time.startsWith(targetDateStr)) {
+                        const entryHour = new Date(entry.time).getUTCHours();
+                        const diff = Math.abs(entryHour - 12);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            bestEntry = entry;
+                        }
+                    }
+                });
+
+                // Fallback to closest timeseries if exact day is edge case
+                if (!bestEntry) {
+                    timeseries.forEach(entry => {
+                        const entryDate = new Date(entry.time);
+                        const diff = Math.abs(entryDate - plannedDate);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            bestEntry = entry;
+                        }
+                    });
+                }
+
+                if (bestEntry) {
+                    const details = bestEntry.data.instant.details;
+                    const next6h = bestEntry.data.next_6_hours || bestEntry.data.next_1_hours;
+
+                    const temp = details.air_temperature;
+                    const windSpeed = details.wind_speed;
+                    const gusts = details.wind_gust || parseFloat((windSpeed * 1.3).toFixed(1));
+                    const windDir = degToCompass(details.wind_from_direction);
+                    const rainAmount = next6h ? (next6h.details.precipitation_amount || 0) : 0;
+
+                    let condition = "Sunny";
+                    const symbolCode = next6h ? next6h.summary.symbol_code : "clearsky";
+                    if (symbolCode.includes("rain") || symbolCode.includes("sleet") || symbolCode.includes("snow") || symbolCode.includes("showers")) {
+                        condition = "Rainy";
+                    } else if (symbolCode.includes("cloud") || symbolCode.includes("fog")) {
+                        condition = "Cloudy";
+                    }
+
+                    liveWeatherData[key] = {
+                        temp,
+                        windSpeed,
+                        gusts,
+                        condition,
+                        rainAmount,
+                        windDir,
+                        symbolCode,
+                        isLive: true
+                    };
+                    fetchStatus[key] = "success";
+                } else {
+                    fetchStatus[key] = "no_data";
+                }
+            } catch (err) {
+                console.error("MET fetch error:", err);
+                fetchStatus[key] = "error";
+            }
+
+            renderAll();
+        }
+
+        function renderWeatherBoxLoading(index) {
+            const box = document.getElementById(`weather-box-${index}`);
+            if (box) {
+                box.innerHTML = `
+                    <div class="flex items-center justify-center py-6 text-xs text-slate-400 gap-2">
+                        <i class="fa-solid fa-spinner animate-spin text-teal-400"></i>
+                        <span>Henter sanntidsvarsel fra MET...</span>
+                    </div>
+                `;
+            }
         }
 
         // Initialize state on load
@@ -704,7 +841,7 @@
             return `${days[d.getDay()]} ${d.getDate()}. ${months[d.getMonth()]} ${d.getFullYear()}`;
         }
 
-        // Deterministic weather generator based on harbor & index
+        // Deterministic fallback weather generator based on harbor & index (when outside MET's forecast date window)
         function generateWeather(harborId, index) {
             const cleanId = String(harborId || "saetre");
             const seed = (cleanId.charCodeAt(0) + index * 13) % 100;
@@ -721,12 +858,15 @@
             const rainAmount = condition === "Rainy" ? parseFloat((1.5 + (seed % 5) * 1.8).toFixed(1)) : 0;
             const windDir = ["N", "NØ", "Ø", "SØ", "S", "SV", "V", "NV"][seed % 8];
 
-            return { temp, windSpeed, gusts, condition, rainAmount, windDir };
+            return { temp, windSpeed, gusts, condition, rainAmount, windDir, isLive: false };
         }
 
         function updateStartDate(val) {
             state.startDate = val;
             persistState();
+            // Clear weather loading cache for recalculation
+            fetchStatus = {};
+            liveWeatherData = {};
             renderAll();
         }
 
@@ -764,6 +904,10 @@
         function updateDayHarbor(index, harborId) {
             state.routeDays[index].harborId = harborId;
             persistState();
+            // Invalidate weather status for this card so it fetches MET coordinates afresh
+            const key = `${index}_${harborId}`;
+            delete fetchStatus[key];
+            delete liveWeatherData[key];
             renderAll();
         }
 
@@ -779,8 +923,13 @@
         }
 
         function updateWeatherSlider(index, key, value) {
+            // Initialize slider simulator on top of actual/fallback weather
+            const currentHarborId = state.routeDays[index].harborId;
+            const liveKey = `${index}_${currentHarborId}`;
+            const baseWeather = liveWeatherData[liveKey] || generateWeather(currentHarborId, index);
+
             if (!state.routeDays[index].customWeather) {
-                state.routeDays[index].customWeather = generateWeather(state.routeDays[index].harborId, index);
+                state.routeDays[index].customWeather = { ...baseWeather };
             }
             state.routeDays[index].customWeather[key] = parseFloat(value);
             persistState();
@@ -814,7 +963,6 @@
         function removeDay(index) {
             const day = state.routeDays[index];
             if (day && day.booked) {
-                // Premium inline Toast feedback instead of system alert
                 showToast("Denne seiledagen er låst (bestilt). Lås opp bestillingen for å slette.", "error");
                 return;
             }
@@ -1203,6 +1351,8 @@
                     onChange: function(selectedDates, dateStr) {
                         state.startDate = dateStr;
                         persistState();
+                        fetchStatus = {};
+                        liveWeatherData = {};
                         renderAll();
                     }
                 });
@@ -1211,9 +1361,32 @@
             }
         }
 
+        // Return appropriate FontAwesome weather icon depending on condition or MET symbol
+        function getWeatherIconClass(weather) {
+            const sym = weather.symbolCode || "";
+            if (sym.includes("rain") || sym.includes("showers")) {
+                return "fa-cloud-showers-heavy text-sky-400";
+            }
+            if (sym.includes("sleet") || sym.includes("snow")) {
+                return "fa-snowflake text-teal-300";
+            }
+            if (sym.includes("cloud") || sym.includes("partlycloudy")) {
+                return "fa-cloud-sun text-slate-400";
+            }
+            if (sym.includes("clearsky") || sym.includes("fair")) {
+                return "fa-sun text-amber-400";
+            }
+            
+            // Standard condition fallbacks
+            if (weather.condition === "Rainy") return "fa-cloud-showers-heavy text-sky-400";
+            if (weather.condition === "Cloudy") return "fa-cloud text-slate-400";
+            if (weather.condition === "Windy") return "fa-wind text-teal-400";
+            return "fa-sun text-amber-400";
+        }
+
         // 7. COMPONENT RENDERING
         function renderAll() {
-            // Update Date input
+            // Update Date input value (just in case)
             document.getElementById("input-start-date").value = state.startDate;
 
             // Metrics variables
@@ -1222,10 +1395,27 @@
             let rainAlerts = 0;
             let windAlerts = 0;
             const calculatedDistances = [];
+            const weatherSnapshots = [];
 
-            // Calculate day distances
+            // Calculate day distances and evaluate warnings
             state.routeDays.forEach((day, i) => {
-                const weather = day.customWeather || generateWeather(day.harborId, i);
+                const liveKey = `${i}_${day.harborId}`;
+                let weather;
+
+                if (day.customWeather) {
+                    weather = day.customWeather;
+                } else if (liveWeatherData[liveKey]) {
+                    weather = liveWeatherData[liveKey];
+                } else {
+                    weather = generateWeather(day.harborId, i);
+                    // Trigger MET fetch in background asynchronously if outside range is not yet verified
+                    if (!fetchStatus[liveKey]) {
+                        fetchMETWeather(i, day.harborId);
+                    }
+                }
+
+                weatherSnapshots.push(weather);
+
                 if (weather.condition === "Rainy" || weather.rainAmount > 0) rainAlerts++;
                 if (weather.windSpeed > 7 || weather.gusts > 10) windAlerts++;
 
@@ -1260,7 +1450,7 @@
 
             state.routeDays.forEach((day, index) => {
                 const harbor = HARBORS_DATABASE.find(h => h.id === day.harborId) || HARBORS_DATABASE[0];
-                const weather = day.customWeather || generateWeather(day.harborId, index);
+                const weather = weatherSnapshots[index];
                 const distance = calculatedDistances[index];
 
                 const isRainy = weather.condition === "Rainy" || weather.rainAmount > 0;
@@ -1273,6 +1463,20 @@
                 let dinnerOptions = state.dinners.map(din => `
                     <option value="${din}" ${day.dinner === din ? 'selected' : ''}>${din}</option>
                 `).join('');
+
+                const liveKey = `${index}_${day.harborId}`;
+                const weatherFetchStatus = fetchStatus[liveKey];
+
+                let weatherBadgeHtml = "";
+                if (day.customWeather) {
+                    weatherBadgeHtml = `<span class="bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-2 py-0.5 rounded text-[10px] font-bold"><i class="fa-solid fa-sliders"></i> Simulert (Egendefinert)</span>`;
+                } else if (weatherFetchStatus === "loading") {
+                    weatherBadgeHtml = `<span class="bg-slate-500/10 text-slate-400 border border-slate-500/20 px-2 py-0.5 rounded text-[10px] font-bold"><i class="fa-solid fa-spinner animate-spin"></i> Henter...</span>`;
+                } else if (weather.isLive) {
+                    weatherBadgeHtml = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-black"><i class="fa-solid fa-satellite"></i> 🟢 Live MET-varsel</span>`;
+                } else {
+                    weatherBadgeHtml = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-semibold"><i class="fa-solid fa-triangle-exclamation"></i> ⏳ Simulert (Utenfor live-periode)</span>`;
+                }
 
                 // Build Day Card with conditional design classes based on booking status
                 const cardHtml = `
@@ -1352,15 +1556,18 @@
                             </div>
 
                             <!-- WEATHER DISPLAY -->
-                            <div class="bg-slate-950 rounded-xl p-4 border border-slate-800 space-y-3">
+                            <div id="weather-box-${index}" class="bg-slate-950 rounded-xl p-4 border border-slate-800 space-y-3">
                                 <div class="flex items-center justify-between border-b border-slate-900 pb-2">
                                     <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                                        <i class="fa-solid fa-cloud-sun text-amber-400"></i>
-                                        Værvarsel for ${harbor.name} (Yr)
+                                        <i class="fa-solid ${getWeatherIconClass(weather)}"></i>
+                                        Værvarsel for ${harbor.name} (MET)
                                     </span>
-                                    ${day.customWeather ? `
-                                        <button onclick="resetCustomWeather(${index})" class="text-[10px] text-teal-400 hover:underline"><i class="fa-solid fa-rotate-left"></i> Gjenopprett</button>
-                                    `:''}
+                                    <div class="flex items-center gap-2">
+                                        ${weatherBadgeHtml}
+                                        ${day.customWeather ? `
+                                            <button onclick="resetCustomWeather(${index})" class="text-[10px] text-teal-400 hover:underline"><i class="fa-solid fa-rotate-left"></i> Nullstill</button>
+                                        `:''}
+                                    </div>
                                 </div>
 
                                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
@@ -1492,7 +1699,7 @@
             let summaryWarningsCount = 0;
 
             state.routeDays.forEach((day, i) => {
-                const weather = day.customWeather || generateWeather(day.harborId, i);
+                const weather = weatherSnapshots[i];
                 const harbor = HARBORS_DATABASE.find(h => h.id === day.harborId) || HARBORS_DATABASE[0];
 
                 const isRainy = weather.condition === "Rainy" || weather.rainAmount > 0;
@@ -1525,7 +1732,7 @@
             printTimeline.innerHTML = "";
             state.routeDays.forEach((day, i) => {
                 const harbor = HARBORS_DATABASE.find(h => h.id === day.harborId) || HARBORS_DATABASE[0];
-                const weather = day.customWeather || generateWeather(day.harborId, i);
+                const weather = weatherSnapshots[i];
                 const distance = calculatedDistances[i];
                 const isBooked = !!day.booked;
 
@@ -1550,7 +1757,7 @@
                             </div>
                             <div>
                                 <span class="block text-[10px] text-slate-400 font-bold uppercase">Melding</span>
-                                <span class="font-medium text-slate-700 block">${weather.temp}°C, vind ${weather.windSpeed} m/s (${weather.windDir}), kast ${weather.gusts} m/s.</span>
+                                <span class="font-medium text-slate-700 block">${weather.temp}°C, vind ${weather.windSpeed} m/s (${weather.windDir}), kast ${weather.gusts} m/s. ${weather.isLive ? '(Live MET)' : '(Simulert)'}</span>
                             </div>
                         </div>
                         ${day.customNotes ? `
