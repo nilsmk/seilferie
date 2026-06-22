@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="no" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seilferie 2026 - Ruteplanlegger</title>
+    
+    <!-- STYLING, FONTS & ICONS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- LEAFLET MAP CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- FLATPICKR DATEPICKER STYLES -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif'],
+                    },
+                    colors: {
+                        marine: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            200: '#bae2fd',
+                            300: '#7dd2fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                            950: '#031b2e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Map overrides */
+        .leaflet-container {
+            font-family: 'Inter', sans-serif;
+            background: #031b2e;
+        }
+        .leaflet-bar a {
+            background-color: #0c4a6e !important;
+            color: #bae2fd !important;
+            border-bottom: 1px solid #075985 !important;
+        }
+        .leaflet-bar a:hover {
+            background-color: #0ea5e9 !important;
+            color: #fff !important;
+        }
+        .leaflet-popup-content-wrapper {
+            background: #0c4a6e !important;
+            color: #f0f7ff !important;
+            border-radius: 0.75rem !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3) !important;
+        }
+        .leaflet-popup-tip {
+            background: #0c4a6e !important;
+        }
+
+        /* Flatpickr Theme Overrides to match Marine styles */
+        .flatpickr-calendar {
+            background: #0f172a !important; /* slate-900 */
+            border: 1px solid #1e293b !important; /* slate-800 */
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5) !important;
+            color: #f1f5f9 !important;
+            border-radius: 1rem !important;
+        }
+        .flatpickr-months .flatpickr-month {
+            background: #0f172a !important;
+            color: #fff !important;
+        }
+        .flatpickr-current-month .flatpickr-monthDropdown-months {
+            background: #0f172a !important;
+            color: #fff !important;
+            font-weight: 700 !important;
+        }
+        .flatpickr-day {
+            color: #cbd5e1 !important;
+            border-radius: 0.5rem !important;
+        }
+        .flatpickr-day:hover {
+            background: #1e293b !important;
+            color: #fff !important;
+        }
+        .flatpickr-day.selected {
+            background: #14b8a6 !important; /* teal-500 */
+            border-color: #14b8a6 !important;
+            color: #031b2e !important;
+            font-weight: 800 !important;
+        }
+        .flatpickr-day.today {
+            border-color: #0ea5e9 !important; /* marine-500 */
+        }
+        .flatpickr-weekday {
+            color: #64748b !important; /* slate-500 */
+            font-weight: 600 !important;
+        }
+        .flatpickr-months .flatpickr-prev-month, .flatpickr-months .flatpickr-next-month {
+            fill: #14b8a6 !important;
+            color: #14b8a6 !important;
+        }
+
+        /* Printable view adjustments */
+        @media print {
+            body {
+                background: white !important;
+                color: black !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            #print-area {
+                background: white !important;
+                color: black !important;
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-marine-950 text-slate-100 min-h-screen flex flex-col selection:bg-teal-500 selection:text-white">
+
+    <!-- HEADER -->
+    <header class="bg-slate-900 border-b border-slate-800 shadow-xl sticky top-0 z-[1000] no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-teal-400 to-marine-600 rounded-lg flex items-center justify-center shadow-lg">
+                        <i class="fa-solid fa-compass text-white text-xl animate-pulse"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                            Seilferie <span class="text-teal-400 font-serif italic text-base">2026</span>
+                        </h1>
+                        <p class="text-xs text-slate-400">Interaktiv ruteplanlegger</p>
+                    </div>
+                </div>
+                
+                <!-- NAVIGATION TABS -->
+                <nav class="flex space-x-1 sm:space-x-2 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                    <button id="btn-planner" onclick="switchTab('planner')" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition duration-200 flex items-center gap-2 bg-marine-600 text-white shadow-md">
+                        <i class="fa-solid fa-map-location-dot"></i>
+                        <span class="hidden sm:inline">Ruteplan</span>
+                    </button>
+                    <button id="btn-dinners" onclick="switchTab('dinners')" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition duration-200 flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-900">
+                        <i class="fa-solid fa-utensils"></i>
+                        <span class="hidden sm:inline">Middagsmeny</span>
+                    </button>
+                    <button id="btn-database" onclick="switchTab('database')" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition duration-200 flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-900">
+                        <i class="fa-solid fa-warehouse"></i>
+                        <span class="hidden sm:inline">Havneguide</span>
+                    </button>
+                    <button id="btn-summary" onclick="switchTab('summary')" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition duration-200 flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-900">
+                        <i class="fa-solid fa-print"></i>
+                        <span class="hidden sm:inline">Sammendrag</span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- DYNAMIC BODY CONTENT -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+        <!-- TRIP QUICK STATS OVERVIEW -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gradient-to-r from-slate-900 to-marine-950 border border-slate-800 p-5 rounded-2xl shadow-xl no-print">
+            <div class="flex items-center space-x-3">
+                <div class="p-3 bg-marine-500/10 text-marine-400 rounded-xl">
+                    <i class="fa-solid fa-calendar-days text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Varighet</p>
+                    <p id="stat-days" class="text-base font-bold text-white">0 Dager</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <div class="p-3 bg-teal-500/10 text-teal-400 rounded-xl">
+                    <i class="fa-solid fa-route text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Total Distanse</p>
+                    <p id="stat-distance" class="text-base font-bold text-white">0 NM</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <div class="p-3 bg-amber-500/10 text-amber-400 rounded-xl">
+                    <i class="fa-solid fa-wind text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Vindvarsler</p>
+                    <p id="stat-wind-alerts" class="text-base font-bold text-white">0 dager</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <div class="p-3 bg-blue-500/10 text-blue-400 rounded-xl">
+                    <i class="fa-solid fa-cloud-showers-heavy text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Regnmeldt</p>
+                    <p id="stat-rain-alerts" class="text-base font-bold text-white">0 dager</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 1: MAIN ROUTE PLANNER -->
+        <div id="tab-content-planner" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            <!-- LEFT COLUMN: MAP & CONTROLS -->
+            <div class="lg:col-span-5 space-y-6 lg:sticky lg:top-28 no-print">
+                
+                <!-- SETTINGS PANEL -->
+                <div class="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-lg space-y-4">
+                    <h3 class="font-bold text-lg text-white border-b border-slate-800 pb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-teal-400"></i>
+                        Dato og Innstillinger
+                    </h3>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wide">
+                            Første reisedato:
+                        </label>
+                        <div class="relative">
+                            <i class="fa-regular fa-calendar absolute left-3 top-3 text-teal-400 pointer-events-none z-10"></i>
+                            <input 
+                                type="text" 
+                                id="input-start-date" 
+                                class="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-white font-medium focus:ring-2 focus:ring-teal-500 outline-none text-sm cursor-pointer"
+                                placeholder="Velg dato (dd/mm/yyyy)"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-2">
+                        <button onclick="showResetConfirmation()" class="px-3 py-1.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg text-xs font-semibold transition-all duration-200">
+                            <i class="fa-solid fa-trash-can mr-1"></i> Nullstill rute
+                        </button>
+                        
+                        <button onclick="addNewDay()" class="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl text-xs font-extrabold transition-all duration-200 shadow-lg">
+                            <i class="fa-solid fa-plus mr-1"></i> Legg til dag
+                        </button>
+                    </div>
+                </div>
+
+                <!-- LIVE LEAFLET MAP -->
+                <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-lg flex flex-col">
+                    <div class="p-4 bg-slate-900 border-b border-slate-800 flex justify-between items-center">
+                        <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                            <i class="fa-solid fa-map text-teal-400"></i>
+                            Seilingskart over Oslofjorden
+                        </h3>
+                    </div>
+                    <div id="sailing-map" class="h-[360px] w-full bg-marine-950"></div>
+                    <div class="p-3 bg-slate-950 text-[11px] text-slate-400 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-info text-teal-400"></i>
+                        <span>Blå sirkler viser planlagte havner. Klikk på kartet for havneinfo.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: CHRONOLOGICAL CARDS -->
+            <div class="lg:col-span-7 space-y-6">
+                <h3 class="font-bold text-xl text-white flex items-center gap-2 no-print">
+                    <i class="fa-solid fa-compass text-teal-400"></i>
+                    Dag-for-dag reiserute
+                </h3>
+
+                <!-- Container where Vanilla JS will dynamically mount our day cards -->
+                <div id="day-cards-container" class="space-y-6"></div>
+
+                <!-- ADD BUTTON -->
+                <button onclick="addNewDay()" class="w-full py-4 border-2 border-dashed border-slate-800 hover:border-teal-500/50 bg-slate-900/30 hover:bg-slate-900/60 rounded-2xl transition duration-200 text-slate-400 hover:text-teal-400 flex flex-col items-center justify-center gap-1 cursor-pointer no-print">
+                    <i class="fa-solid fa-plus-circle text-xl animate-bounce"></i>
+                    <span class="text-sm font-bold">Legg til en ny seiledag</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- TAB 2: MIDDAGSMENY -->
+        <div id="tab-content-dinners" class="hidden bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xl space-y-6 no-print">
+            <div class="border-b border-slate-800 pb-4 flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-utensils text-teal-400"></i>
+                        Middagsliste (Fra CSV)
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Legg til nye middager eller fjern retter fra den tilgjengelige listen.</p>
+                </div>
+                <div class="flex items-center space-x-2 w-full sm:w-auto">
+                    <input 
+                        type="text"
+                        id="new-dinner-input"
+                        placeholder="Legg til ny middagsrett..."
+                        class="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-teal-500 w-full sm:w-64"
+                    />
+                    <button 
+                        onclick="addDinnerIdea()"
+                        class="bg-teal-500 hover:bg-teal-400 text-slate-950 px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-1"
+                    >
+                        Legg til
+                    </button>
+                </div>
+            </div>
+
+            <div id="dinners-list-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </div>
+
+        <!-- TAB 3: HAVNEGUIDE DATABASE -->
+        <div id="tab-content-database" class="hidden bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xl space-y-6 no-print">
+            <div>
+                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-anchor text-teal-400"></i>
+                    Søkbart Havnearkiv (Ruteplan)
+                </h2>
+                <p class="text-xs text-slate-400 mt-1">Oversikt over mulige havner med direktelinker til havneguider, værmeldinger og live kameraer.</p>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead class="text-xs text-slate-400 uppercase bg-slate-950 border border-slate-800">
+                        <tr>
+                            <th scope="col" class="px-4 py-3">Havnestad</th>
+                            <th scope="col" class="px-4 py-3">Posisjon</th>
+                            <th scope="col" class="px-4 py-3">Norsk Havneguide</th>
+                            <th scope="col" class="px-4 py-3">Live Webkamera</th>
+                            <th scope="col" class="px-4 py-3">Yr-varsel</th>
+                        </tr>
+                    </thead>
+                    <tbody id="harbor-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB 4: SUMMARY (PRINTABLE VIEW) -->
+        <div id="tab-content-summary" class="hidden bg-slate-900 rounded-2xl border border-slate-800 p-6 sm:p-8 shadow-xl space-y-8">
+            <div class="border-b-2 border-slate-800 pb-6 flex flex-wrap justify-between items-center gap-4 no-print">
+                <div>
+                    <span class="text-teal-400 font-bold uppercase tracking-widest text-xs">Seilferie 2026</span>
+                    <h2 class="text-2xl font-extrabold text-white">Fullstendig Reisesammendrag</h2>
+                </div>
+                <button onclick="window.print()" class="px-4 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl text-xs font-extrabold transition flex items-center gap-2 shadow-lg">
+                    <i class="fa-solid fa-print"></i> Skriv ut reiserute / Lagre PDF
+                </button>
+            </div>
+
+            <!-- Print-friendly details -->
+            <div id="print-area" class="space-y-6">
+                <div class="text-slate-950 bg-white p-6 rounded-xl border border-slate-300 space-y-4">
+                    <h1 class="text-2xl font-black border-b pb-2">Seilasdetaljer - Sommer 2026</h1>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm font-medium">
+                        <div>
+                            <p class="text-slate-500 uppercase text-[10px] font-bold">Startdato</p>
+                            <p id="print-start-date" class="font-bold">-</p>
+                        </div>
+                        <div>
+                            <p class="text-slate-500 uppercase text-[10px] font-bold">Planlagte dager</p>
+                            <p id="print-total-days" class="font-bold">-</p>
+                        </div>
+                        <div>
+                            <p class="text-slate-500 uppercase text-[10px] font-bold">Antatt distanse</p>
+                            <p id="print-total-distance" class="font-bold">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Print warnings summary -->
+                <div id="print-warnings-container" class="bg-amber-50 border border-amber-300 p-4 rounded-xl text-amber-950 space-y-2">
+                    <h4 class="font-extrabold text-sm flex items-center gap-1.5">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Sikkerhetsmerknader for ruten
+                    </h4>
+                    <ul id="print-warnings-list" class="list-disc list-inside text-xs space-y-1"></ul>
+                </div>
+
+                <!-- Day Cards Print view -->
+                <div class="space-y-4">
+                    <h3 class="font-extrabold text-lg text-white border-b border-slate-800 pb-2">Daglig program</h3>
+                    <div id="print-timeline-container" class="space-y-4"></div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-6 mt-12 no-print">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-400 space-y-2">
+            <p>⛵ Seilferie 2026 ruteplanlegger basert på opplastet ruteplan og middagsarkiv.</p>
+            <p class="text-slate-500">Avstander er kalkulert via Haversine-formelen som luftlinjeestimater.</p>
+        </div>
+    </footer>
+
+    <!-- RESET MODAL -->
+    <div id="reset-modal" class="fixed inset-0 bg-black/80 z-[9999] hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-sm w-full space-y-4">
+            <h3 class="font-black text-lg text-white">Nullstill reiserute?</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">Er du sikker på at du vil nullstille ruten din? Alle dager bortsett fra første vil bli fjernet.</p>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeResetModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold text-slate-300">Avbryt</button>
+                <button onclick="confirmReset()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 rounded-xl text-xs font-bold text-white">Ja, slett alt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LEAFLET MAP JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- FLATPICKR DATEPICKER JS -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/no.js"></script>
+
+    <!-- VANILLA JS ENGINE -->
+    <script>
+        // 1. HARDCODED HARBORS DATABASE (BASED EXACTLY ON USER CSV)
+        const HARBORS_DATABASE = [
+            { id: "saetre", name: "Sætre", lat: 59.6806, lng: 10.5186, guideName: "Sætre Havn", guideUrl: "https://harbourguide.com/no/search?q=Sætre", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-2746404/Norge/Viken/Asker/S%C3%A6tre" },
+            { id: "horten", name: "Horten", lat: 59.4128, lng: 10.4900, guideName: "Sykehusbrygga", guideUrl: "https://harbourguide.com/no/search?q=Sykehusbrygga", webcamUrl: "https://nettkamera.cid.no/hortenIndreHavn/max.jpg", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-2826417/Norge/Vestfold/Horten/Horten" },
+            { id: "aasgaardstrand", name: "Åsgårdstrand", lat: 59.3491, lng: 10.4705, guideName: "Åsgårdstrand seilforening", guideUrl: "https://harbourguide.com/no/search?q=Åsgårdstrand", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-2825313/Norge/Vestfold/Horten/%C3%85sg%C3%A5rdstrand" },
+            { id: "bolaerne", name: "Bolærne", lat: 59.2140, lng: 10.5510, guideName: "Østre Bolærne", guideUrl: "https://harbourguide.com/no/search?q=Østre Bolærne", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/2-3221422/Norge/Vestfold/F%C3%A6rder/Bol%C3%A6rne" },
+            { id: "kungsvik", name: "Kungsvik", lat: 59.0064, lng: 11.1278, guideName: "Kungsviks Hamnförening", guideUrl: "https://harbourguide.com/no/search?q=Kungsvik", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/2-2698124/Sverige/V%C3%A4stra%20G%C3%B6talands%20l%C3%A4n/Str%C3%B6mstads%20Kommun/Kungsvik" },
+            { id: "kyrkosund", name: "Kyrkosund (Syd-Koster)", lat: 58.8872, lng: 11.0119, guideName: "Kyrkosund", guideUrl: "https://harbourguide.com/no/search?q=Kyrkosund", webcamUrl: "https://assets1.webcam.io/w/z2kY3M/latest_hd.jpg", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/2-2698084/Sverige/V%C3%A4stra%20G%C3%B6talands%20l%C3%A4n/Str%C3%B6mstads%20Kommun/Kyrkosund" },
+            { id: "reso", name: "Resö", lat: 58.8033, lng: 11.1200, guideName: "Resö Gästhamn", guideUrl: "https://harbourguide.com/no/search?q=Resö", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/2-2682691/Sverige/V%C3%A4stra%20G%C3%B6talands%20l%C3%A4n/Tanum%20Municipality/Res%C3%B6" },
+            { id: "vettnet", name: "Vettnet (Nord-Koster)", lat: 58.9036, lng: 11.0264, guideName: "Nord-Koster Vättnet", guideUrl: "https://harbourguide.com/no/search?q=Vettnet", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/2-2663288/Sverige/V%C3%A4stra%20G%C3%B6talands%20l%C3%A4n/Str%C3%B6mstads%20Kommun/Vettnet" },
+            { id: "verdens_ende", name: "Verdens Ende", lat: 59.0558, lng: 10.4075, guideName: "Verdens Ende", guideUrl: "https://harbourguide.com/no/search?q=Verdens Ende", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-33449/Norge/Vestfold/F%C3%A6rder/Verdens%20ende" },
+            { id: "nevlunghavn", name: "Nevlunghavn", lat: 58.9689, lng: 9.8647, guideName: "Nevlunghavn gjestehavn", guideUrl: "https://harbourguide.com/no/search?q=Nevlunghavn", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-2783331/Norge/Vestfold/Larvik/Nevlunghavn" },
+            { id: "ildverket", name: "Ildverket", lat: 59.1350, lng: 10.4500, guideName: "Ildverket - Nordbrygga", guideUrl: "https://harbourguide.com/no/search?q=Ildverket", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-33338/Norge/Vestfold/F%C3%A6rder/Ildverket" },
+            { id: "engelsviken", name: "Engelsviken", lat: 59.2589, lng: 10.7350, guideName: "Engelsviken", guideUrl: "https://harbourguide.com/no/search?q=Engelsviken", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-33478/Norge/%C3%98stfold/Fredrikstad/Engelsviken" },
+            { id: "teibern", name: "Teibern (Larkollen)", lat: 59.3330, lng: 10.6620, guideName: "Arbeidernes Båtforening Moss – Teibern", guideUrl: "https://harbourguide.com/no/search?q=Teibern", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-2779456/Norge/%C3%98stfold/Moss/Larkollen%20lykt" },
+            { id: "skjaerhalden", name: "Skjærhalden", lat: 59.0239, lng: 11.0314, guideName: "Skjærhalden Gjestehavn", guideUrl: "https://harbourguide.com/no/search?q=Skjærhalden", webcamUrl: "https://assets2.webcam.io/w/PV1O39/latest_hd.jpg?1751272569054", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-34249/Norge/%C3%98stfold/Hvaler/Skj%C3%A6rhalden" },
+            { id: "stroemstad", name: "Strømstad", lat: 58.9378, lng: 11.1714, guideName: "Strömstad Marina AB", guideUrl: "https://harbourguide.com/no/search?q=Strømstad", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/2-2671224/Sverige/V%C3%A4stra%20G%C3%B6talands%20l%C3%A4n/Str%C3%B6mstads%20Kommun/Str%C3%B6mstad" },
+            { id: "ramsoe", name: "Ramsö", lat: 58.8319, lng: 11.0660, guideName: "Ramsö", guideUrl: "https://harbourguide.com/no/search?q=Ramsö", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/2-2683323/Sverige/V%C3%A4stra%20G%C3%B6talands%20l%C3%A4n/Rams%C3%B6" },
+            { id: "stavern", name: "Stavern", lat: 59.0003, lng: 10.0353, guideName: "Stavern Gjestehavn", guideUrl: "https://harbourguide.com/no/search?q=Stavern", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-23236/Norge/Vestfold/Larvik/Stavernsodden" },
+            { id: "nordre_lauer", name: "Nordre Lauer", lat: 59.0044, lng: 11.0183, guideName: "Nordre Lauer gjestehavn", guideUrl: "https://harbourguide.com/no/search?q=Nordre Lauer", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-34257/Norge/%C3%98stfold/Hvaler/Nordre%20Lauer" }
+        ];
+
+        const DEFAULT_DINNERS = [
+            "Pasta bolognese",
+            "Pasta carbonara",
+            "Pølser med lomper/mos",
+            "Gryterett",
+            "Tomatsuppe",
+            "Pizza",
+            "Fiskekaker med mos",
+            "Pannekaker",
+            "Enkel taco/wraps",
+            "Omelett",
+            "Ostesmørbrød",
+            "Røkt laks/ørret og pasta",
+            "Kjøttboller og potetmos",
+            "Koteletter og potetmos",
+            "Fiskeburger",
+            "Hamburger"
+        ];
+
+        // 3. APPLICATION STATE
+        let state = {
+            startDate: "24/07/2026",
+            dinners: [...DEFAULT_DINNERS],
+            routeDays: [
+                { dateOffset: 0, harborId: "saetre", dinner: "Pasta bolognese", customNotes: "Mønstring og klargjøring av båt.", customWeather: null, booked: true },
+                { dateOffset: 1, harborId: "horten", dinner: "Enkel taco/wraps", customNotes: "Husk å sjekke diesel og ferskvann.", customWeather: null, booked: false },
+                { dateOffset: 2, harborId: "bolaerne", dinner: "Hamburger", customNotes: "Fin natursti her.", customWeather: null, booked: false },
+                { dateOffset: 3, harborId: "skjaerhalden", dinner: "Fiskeburger", customNotes: "Krysser fjorden i dag.", customWeather: null, booked: true }
+            ],
+            selectedTab: "planner"
+        };
+
+        // Map variables
+        let map = null;
+        let mapMarkers = [];
+        let mapPolyline = null;
+
+        function safeLocalStorageGet(key, fallback) {
+            try {
+                const val = localStorage.getItem(key);
+                return val ? JSON.parse(val) : fallback;
+            } catch (e) {
+                return fallback;
+            }
+        }
+
+        function safeLocalStorageSet(key, val) {
+            try {
+                localStorage.setItem(key, JSON.stringify(val));
+            } catch (e) {}
+        }
+
+        // Parse date adaptively (supports standard dash and slashes format)
+        function parseDateString(dateStr) {
+            if (!dateStr) return new Date();
+            
+            // If already in DD/MM/YYYY format
+            if (dateStr.includes("/")) {
+                const parts = dateStr.split("/");
+                if (parts.length === 3) {
+                    return new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+                }
+            }
+            
+            // If in legacy YYYY-MM-DD format
+            if (dateStr.includes("-")) {
+                const parts = dateStr.split("-");
+                if (parts.length === 3) {
+                    if (parts[0].length === 4) { // YYYY-MM-DD
+                        return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                    } else if (parts[2].length === 4) { // DD-MM-YYYY
+                        return new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+                    }
+                }
+            }
+            return new Date(dateStr);
+        }
+
+        // Formats date string to DD/MM/YYYY standard output
+        function formatToNorwegianShortString(dateObj) {
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const year = dateObj.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+        // Floating premium system notification toast
+        function showToast(message, type = "error") {
+            const toast = document.createElement("div");
+            toast.className = `fixed bottom-5 right-5 z-[10000] p-4 rounded-xl shadow-2xl transition-all duration-300 transform translate-y-10 opacity-0 border text-sm font-bold flex items-center gap-2 ${
+                type === "error" 
+                ? "bg-rose-950/90 text-rose-200 border-rose-500/30" 
+                : "bg-emerald-950/90 text-emerald-200 border-emerald-500/30"
+            }`;
+            toast.innerHTML = `<i class="fa-solid ${type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-check'}"></i> <span>${message}</span>`;
+            document.body.appendChild(toast);
+            
+            // Trigger transition
+            setTimeout(() => {
+                toast.classList.remove("translate-y-10", "opacity-0");
+            }, 10);
+            
+            // Fade out and remove
+            setTimeout(() => {
+                toast.classList.add("translate-y-10", "opacity-0");
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // Initialize state on load
+        function loadSavedState() {
+            try {
+                const savedDate = localStorage.getItem("seil_startDate");
+                if (savedDate) {
+                    // Adapt legacy dash layout to norwegian format if necessary
+                    if (savedDate.includes("-") && !savedDate.includes("/")) {
+                        const parsed = parseDateString(savedDate);
+                        state.startDate = formatToNorwegianShortString(parsed);
+                    } else {
+                        state.startDate = JSON.parse(savedDate);
+                    }
+                }
+
+                const savedDinners = localStorage.getItem("seil_dinners");
+                if (savedDinners) state.dinners = JSON.parse(savedDinners);
+
+                const savedRoute = localStorage.getItem("seil_routeDays");
+                if (savedRoute) state.routeDays = JSON.parse(savedRoute);
+            } catch (e) {}
+        }
+
+        function persistState() {
+            safeLocalStorageSet("seil_startDate", state.startDate);
+            safeLocalStorageSet("seil_dinners", state.dinners);
+            safeLocalStorageSet("seil_routeDays", state.routeDays);
+        }
+
+        // Utility to realign all date offsets sequentially
+        function realignOffsets() {
+            state.routeDays.forEach((day, i) => {
+                day.dateOffset = i;
+            });
+        }
+
+        // Inserts a new day directly after the given index
+        function insertDayAfter(index) {
+            const currentDay = state.routeDays[index];
+            const nextHarbor = currentDay ? currentDay.harborId : HARBORS_DATABASE[0].id;
+            const nextDinner = state.dinners[(index + 1) % state.dinners.length] || "";
+
+            state.routeDays.splice(index + 1, 0, {
+                dateOffset: 0, // reassigned below
+                harborId: nextHarbor,
+                dinner: nextDinner,
+                customNotes: "",
+                customWeather: null,
+                booked: false
+            });
+
+            realignOffsets();
+            persistState();
+            renderAll();
+        }
+
+        // Toggles booking lock for a given day
+        function toggleBooked(index, isBooked) {
+            state.routeDays[index].booked = isBooked;
+            persistState();
+            renderAll();
+        }
+
+        // Calculate Haversine distance
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const km = R * c;
+            const nm = km / 1.852; 
+            return { km, nm };
+        }
+
+        // Format dates into written Norwegian language
+        function formatNorwegianDate(dateStr, offset) {
+            const d = parseDateString(dateStr);
+            d.setDate(d.getDate() + offset);
+            
+            const days = ["Søndag", "Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag"];
+            const months = ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"];
+            
+            return `${days[d.getDay()]} ${d.getDate()}. ${months[d.getMonth()]} ${d.getFullYear()}`;
+        }
+
+        // Deterministic weather generator based on harbor & index
+        function generateWeather(harborId, index) {
+            const cleanId = String(harborId || "saetre");
+            const seed = (cleanId.charCodeAt(0) + index * 13) % 100;
+            
+            const windSpeed = parseFloat((3 + (seed % 7) + (seed % 3) * 0.9).toFixed(1));
+            const gusts = parseFloat((windSpeed * (1.2 + (seed % 4) * 0.15)).toFixed(1));
+            const temp = 17 + (seed % 8);
+            
+            let condition = "Sunny";
+            if (seed % 4 === 1) condition = "Cloudy";
+            else if (seed % 4 === 2) condition = "Rainy";
+            else if (seed % 4 === 3) condition = "Windy";
+
+            const rainAmount = condition === "Rainy" ? parseFloat((1.5 + (seed % 5) * 1.8).toFixed(1)) : 0;
+            const windDir = ["N", "NØ", "Ø", "SØ", "S", "SV", "V", "NV"][seed % 8];
+
+            return { temp, windSpeed, gusts, condition, rainAmount, windDir };
+        }
+
+        function updateStartDate(val) {
+            state.startDate = val;
+            persistState();
+            renderAll();
+        }
+
+        function switchTab(tabId) {
+            state.selectedTab = tabId;
+            
+            // Toggle visibility of standard content tabs
+            document.getElementById("tab-content-planner").classList.add("hidden");
+            document.getElementById("tab-content-dinners").classList.add("hidden");
+            document.getElementById("tab-content-database").classList.add("hidden");
+            document.getElementById("tab-content-summary").classList.add("hidden");
+
+            // Toggle active styles on buttons
+            document.querySelectorAll("nav button").forEach(btn => {
+                btn.className = "px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition duration-200 flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-900";
+            });
+
+            const activeBtn = document.getElementById(`btn-${tabId}`);
+            if (activeBtn) {
+                activeBtn.className = "px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition duration-200 flex items-center gap-2 bg-marine-600 text-white shadow-md";
+            }
+
+            const activeTabContent = document.getElementById(`tab-content-${tabId}`);
+            if (activeTabContent) {
+                activeTabContent.classList.remove("hidden");
+            }
+
+            if (tabId === "planner" && map) {
+                setTimeout(() => { map.invalidateSize(); }, 150);
+            }
+
+            renderAll();
+        }
+
+        function updateDayHarbor(index, harborId) {
+            state.routeDays[index].harborId = harborId;
+            persistState();
+            renderAll();
+        }
+
+        function updateDayDinner(index, dinnerVal) {
+            state.routeDays[index].dinner = dinnerVal;
+            persistState();
+            renderAll();
+        }
+
+        function updateDayNotes(index, notesVal) {
+            state.routeDays[index].customNotes = notesVal;
+            persistState();
+        }
+
+        function updateWeatherSlider(index, key, value) {
+            if (!state.routeDays[index].customWeather) {
+                state.routeDays[index].customWeather = generateWeather(state.routeDays[index].harborId, index);
+            }
+            state.routeDays[index].customWeather[key] = parseFloat(value);
+            persistState();
+            renderAll();
+        }
+
+        function resetCustomWeather(index) {
+            state.routeDays[index].customWeather = null;
+            persistState();
+            renderAll();
+        }
+
+        function addNewDay() {
+            const lastDay = state.routeDays[state.routeDays.length - 1];
+            const nextOffset = lastDay ? lastDay.dateOffset + 1 : 0;
+            const nextHarbor = lastDay ? lastDay.harborId : HARBORS_DATABASE[0].id;
+
+            state.routeDays.push({
+                dateOffset: nextOffset,
+                harborId: nextHarbor,
+                dinner: state.dinners[nextOffset % state.dinners.length] || "",
+                customNotes: "",
+                customWeather: null,
+                booked: false
+            });
+
+            persistState();
+            renderAll();
+        }
+
+        function removeDay(index) {
+            const day = state.routeDays[index];
+            if (day && day.booked) {
+                // Premium inline Toast feedback instead of system alert
+                showToast("Denne seiledagen er låst (bestilt). Lås opp bestillingen for å slette.", "error");
+                return;
+            }
+            if (state.routeDays.length <= 1) return;
+            state.routeDays.splice(index, 1);
+            
+            // Realign offsets
+            realignOffsets();
+
+            persistState();
+            renderAll();
+        }
+
+        function moveDay(index, direction) {
+            if (direction === 'up' && index === 0) return;
+            if (direction === 'down' && index === state.routeDays.length - 1) return;
+
+            const targetIndex = direction === 'up' ? index - 1 : index + 1;
+            const temp = { ...state.routeDays[index] };
+            
+            // Swap details except the offset
+            state.routeDays[index].harborId = state.routeDays[targetIndex].harborId;
+            state.routeDays[index].dinner = state.routeDays[targetIndex].dinner;
+            state.routeDays[index].customNotes = state.routeDays[targetIndex].customNotes;
+            state.routeDays[index].customWeather = state.routeDays[targetIndex].customWeather;
+
+            state.routeDays[targetIndex].harborId = temp.harborId;
+            state.routeDays[targetIndex].dinner = temp.dinner;
+            state.routeDays[targetIndex].customNotes = temp.customNotes;
+            state.routeDays[targetIndex].customWeather = temp.customWeather;
+
+            persistState();
+            renderAll();
+        }
+
+        // Reset Modals
+        function showResetConfirmation() {
+            document.getElementById("reset-modal").classList.remove("hidden");
+        }
+
+        function closeResetModal() {
+            document.getElementById("reset-modal").classList.add("hidden");
+        }
+
+        function confirmReset() {
+            state.routeDays = [
+                { dateOffset: 0, harborId: "saetre", dinner: state.dinners[0], customNotes: "", customWeather: null, booked: false }
+            ];
+            persistState();
+            closeResetModal();
+            renderAll();
+        }
+
+        // Dinners addition
+        function addDinnerIdea() {
+            const input = document.getElementById("new-dinner-input");
+            const val = input.value.trim();
+            if (!val || state.dinners.includes(val)) return;
+
+            state.dinners.push(val);
+            input.value = "";
+            persistState();
+            renderAll();
+        }
+
+        function removeDinnerIdea(dinner) {
+            state.dinners = state.dinners.filter(d => d !== dinner);
+            persistState();
+            renderAll();
+        }
+
+        // 6. MAP ENGINE FUNCTIONS
+        function initializeMap() {
+            try {
+                if (map) return;
+                map = L.map('sailing-map', {
+                    center: [59.2, 10.7],
+                    zoom: 9,
+                    zoomControl: true,
+                });
+
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+                }).addTo(map);
+            } catch (e) {
+                console.error("Map initialization failed", e);
+            }
+        }
+
+        function drawMapRoute() {
+            if (!map) return;
+
+            // Clear markers
+            mapMarkers.forEach(m => m.remove());
+            mapMarkers = [];
+
+            if (mapPolyline) {
+                mapPolyline.remove();
+                mapPolyline = null;
+            }
+
+            const pathCoords = [];
+
+            // Add planned path
+            state.routeDays.forEach((day, index) => {
+                const harbor = HARBORS_DATABASE.find(h => h.id === day.harborId);
+                if (harbor) {
+                    pathCoords.push([harbor.lat, harbor.lng]);
+
+                    // Stylize booked harbor markers dynamically in green, regular in cyan
+                    const markerColor = day.booked ? "#10b981" : "#0ea5e9";
+                    const markerWeight = day.booked ? 3 : 2;
+                    const markerRadius = day.booked ? 10 : 8;
+
+                    // Create marker
+                    const marker = L.circleMarker([harbor.lat, harbor.lng], {
+                        radius: markerRadius,
+                        fillColor: markerColor,
+                        color: "#ffffff",
+                        weight: markerWeight,
+                        fillOpacity: 0.9
+                    }).addTo(map);
+
+                    const lockBadge = day.booked ? `<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] px-1.5 py-0.5 rounded font-extrabold flex items-center gap-1 w-max mt-1"><i class="fa-solid fa-lock text-[8px]"></i> BESTILT HAVN</span>` : '';
+
+                    marker.bindPopup(`
+                        <div class="p-1">
+                            <h4 class="font-bold text-sm text-white">${harbor.name}</h4>
+                            <p class="text-xs text-sky-200 mt-0.5">Dag ${index + 1} i ruteplanen</p>
+                            ${lockBadge}
+                        </div>
+                    `);
+
+                    mapMarkers.push(marker);
+                }
+            });
+
+            // Draw line
+            if (pathCoords.length > 1) {
+                mapPolyline = L.polyline(pathCoords, {
+                    color: '#14b8a6',
+                    weight: 4,
+                    opacity: 0.8,
+                    dashArray: '8, 6'
+                }).addTo(map);
+
+                map.fitBounds(mapPolyline.getBounds(), { padding: [30, 30] });
+            } else if (pathCoords.length === 1) {
+                map.setView(pathCoords[0], 10);
+            }
+        }
+
+        function initializeDatePicker() {
+            try {
+                flatpickr("#input-start-date", {
+                    locale: "no",
+                    dateFormat: "d/m/Y", // Norwegian formatting
+                    defaultDate: parseDateString(state.startDate),
+                    onChange: function(selectedDates, dateStr) {
+                        state.startDate = dateStr;
+                        persistState();
+                        renderAll();
+                    }
+                });
+            } catch (e) {
+                console.error("Flatpickr initialization failed", e);
+            }
+        }
+
+        // 7. COMPONENT RENDERING
+        function renderAll() {
+            // Update Date input
+            document.getElementById("input-start-date").value = state.startDate;
+
+            // Metrics variables
+            let totalNM = 0;
+            let totalKM = 0;
+            let rainAlerts = 0;
+            let windAlerts = 0;
+            const calculatedDistances = [];
+
+            // Calculate day distances
+            state.routeDays.forEach((day, i) => {
+                const weather = day.customWeather || generateWeather(day.harborId, i);
+                if (weather.condition === "Rainy" || weather.rainAmount > 0) rainAlerts++;
+                if (weather.windSpeed > 7 || weather.gusts > 10) windAlerts++;
+
+                if (i === 0) {
+                    calculatedDistances.push({ nm: 0, km: 0 });
+                } else {
+                    const prevHarbor = HARBORS_DATABASE.find(h => h.id === state.routeDays[i-1].harborId);
+                    const currHarbor = HARBORS_DATABASE.find(h => h.id === day.harborId);
+                    if (prevHarbor && currHarbor) {
+                        const dist = calculateDistance(prevHarbor.lat, prevHarbor.lng, currHarbor.lat, currHarbor.lng);
+                        totalNM += dist.nm;
+                        totalKM += dist.km;
+                        calculatedDistances.push(dist);
+                    } else {
+                        calculatedDistances.push({ nm: 0, km: 0 });
+                    }
+                }
+            });
+
+            // Update stats
+            document.getElementById("stat-days").innerText = `${state.routeDays.length} Dager`;
+            document.getElementById("stat-distance").innerText = `${totalNM.toFixed(1)} NM (${totalKM.toFixed(0)} km)`;
+            document.getElementById("stat-wind-alerts").innerText = `${windAlerts} dager`;
+            document.getElementById("stat-rain-alerts").innerText = `${rainAlerts} dager`;
+
+            // Render day cards
+            const container = document.getElementById("day-cards-container");
+            container.innerHTML = "";
+
+            state.routeDays.forEach((day, index) => {
+                const harbor = HARBORS_DATABASE.find(h => h.id === day.harborId) || HARBORS_DATABASE[0];
+                const weather = day.customWeather || generateWeather(day.harborId, index);
+                const distance = calculatedDistances[index];
+
+                const isRainy = weather.condition === "Rainy" || weather.rainAmount > 0;
+                const isWindy = weather.windSpeed > 7;
+                const isGusty = weather.gusts > 10;
+                const hasWarnings = isRainy || isWindy || isGusty;
+                const isBooked = !!day.booked;
+
+                // Dinners drop-down list
+                let dinnerOptions = state.dinners.map(din => `
+                    <option value="${din}" ${day.dinner === din ? 'selected' : ''}>${din}</option>
+                `).join('');
+
+                // Build Day Card with conditional design classes based on booking status
+                const cardHtml = `
+                    <div class="bg-slate-900 rounded-2xl border transition-all duration-300 overflow-hidden shadow-lg ${isBooked ? 'border-emerald-500/60 ring-2 ring-emerald-500/10' : hasWarnings ? 'border-amber-500/30 ring-1 ring-amber-500/10' : 'border-slate-800'} no-print">
+                        <div class="bg-slate-900 border-b border-slate-800 px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-9 h-9 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center font-bold ${isBooked ? 'text-emerald-400 border-emerald-500/30' : 'text-teal-400'}">
+                                    D${index + 1}
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <p class="text-sm font-bold text-white">${formatNorwegianDate(state.startDate, day.dateOffset)}</p>
+                                        ${isBooked ? '<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black tracking-wider px-2 py-0.5 rounded-lg flex items-center gap-1"><i class="fa-solid fa-lock text-[8px]"></i> BESTILT</span>' : ''}
+                                    </div>
+                                    <p class="text-xs text-slate-400">Leggdistanse: ${index === 0 ? 'Startsted' : distance.nm.toFixed(1) + ' NM (' + distance.km.toFixed(1) + ' km)'}</p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center space-x-1.5">
+                                <button onclick="moveDay(${index}, 'up')" ${index === 0 || isBooked ? 'disabled' : ''} class="p-1.5 bg-slate-950 border border-slate-800 text-slate-400 hover:text-white rounded disabled:opacity-30 disabled:hover:text-slate-400">
+                                    <i class="fa-solid fa-chevron-up text-xs"></i>
+                                </button>
+                                <button onclick="moveDay(${index}, 'down')" ${index === state.routeDays.length - 1 || isBooked ? 'disabled' : ''} class="p-1.5 bg-slate-950 border border-slate-800 text-slate-400 hover:text-white rounded disabled:opacity-30 disabled:hover:text-slate-400">
+                                    <i class="fa-solid fa-chevron-down text-xs"></i>
+                                </button>
+                                <button onclick="removeDay(${index})" ${isBooked ? 'disabled' : ''} class="p-1.5 bg-slate-950 border border-rose-950/40 text-rose-400 hover:bg-rose-500 hover:text-white rounded ml-2 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-rose-400" title="${isBooked ? 'Lås opp bestilling for å slette' : ''}">
+                                    <i class="fa-solid fa-trash-can text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="p-5 space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wide">Destinasjonshavn</label>
+                                        <!-- BOOKING TOGGLE SWITCH -->
+                                        <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                                            <input type="checkbox" class="hidden" onchange="toggleBooked(${index}, this.checked)" ${isBooked ? 'checked' : ''} />
+                                            <span class="text-[10px] font-bold flex items-center gap-1 ${isBooked ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'} transition">
+                                                <i class="fa-solid ${isBooked ? 'fa-lock' : 'fa-lock-open'}"></i>
+                                                ${isBooked ? 'Bestilt' : 'Marker som bestilt'}
+                                            </span>
+                                        </label>
+                                    </div>
+                                    
+                                    <!-- Select harbor dropdown - Locked and protected if booked -->
+                                    <select onchange="updateDayHarbor(${index}, this.value)" ${isBooked ? 'disabled' : ''} class="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-3 py-2 text-sm font-semibold focus:ring-2 focus:ring-teal-500 outline-none ${isBooked ? 'opacity-65 cursor-not-allowed border-emerald-950 text-emerald-100' : ''}">
+                                        ${HARBORS_DATABASE.map(h => `<option value="${h.id}" ${day.harborId === h.id ? 'selected':''}>${h.name}</option>`).join('')}
+                                    </select>
+
+                                    ${isBooked ? `
+                                        <p class="text-[10px] text-emerald-400/80 font-semibold mt-1.5 flex items-center gap-1">
+                                            <i class="fa-solid fa-info-circle text-[9px]"></i> Havnen er låst for endringer fordi plassen er bestilt.
+                                        </p>
+                                    ` : ''}
+
+                                    <div class="mt-3 flex flex-wrap gap-2">
+                                        ${harbor.guideUrl ? `<a href="${harbor.guideUrl}" target="_blank" class="px-2.5 py-1.5 bg-slate-950 hover:bg-slate-850 text-slate-300 hover:text-teal-400 rounded-lg text-xs font-semibold flex items-center border border-slate-800 transition"><i class="fa-solid fa-book-open text-teal-400 mr-1.5"></i>Havneguide</a>` : ''}
+                                        ${harbor.webcamUrl ? `<a href="${harbor.webcamUrl}" target="_blank" class="px-2.5 py-1.5 bg-slate-950 hover:bg-slate-850 text-slate-300 hover:text-cyan-400 rounded-lg text-xs font-semibold flex items-center border border-slate-800 transition"><i class="fa-solid fa-camera text-cyan-400 mr-1.5"></i>Kamera</a>` : ''}
+                                        ${harbor.yrUrl ? `<a href="${harbor.yrUrl}" target="_blank" class="px-2.5 py-1.5 bg-slate-950 hover:bg-slate-850 text-slate-300 hover:text-sky-400 rounded-lg text-xs font-semibold flex items-center border border-slate-800 transition"><i class="fa-solid fa-cloud text-sky-400 mr-1.5"></i>Yr</a>` : ''}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Dagens Middag</label>
+                                    <select onchange="updateDayDinner(${index}, this.value)" class="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-3 py-2 text-sm font-semibold focus:ring-2 focus:ring-teal-500 outline-none">
+                                        <option value="">-- Velg middag --</option>
+                                        ${dinnerOptions}
+                                        <option value="custom_input" ${(!state.dinners.includes(day.dinner) && day.dinner !== "") ? 'selected' : ''}>✏️ Skriv inn annet...</option>
+                                    </select>
+
+                                    ${(!state.dinners.includes(day.dinner) && day.dinner !== "") ? `
+                                        <input type="text" value="${day.dinner}" placeholder="Angi rett..." oninput="updateDayDinner(${index}, this.value)" class="w-full mt-2 bg-slate-950 border border-slate-800 text-white rounded-xl px-3 py-1.5 text-xs focus:ring-1 focus:ring-teal-500 outline-none"/>
+                                    ` : ''}
+                                </div>
+                            </div>
+
+                            <!-- WEATHER DISPLAY -->
+                            <div class="bg-slate-950 rounded-xl p-4 border border-slate-800 space-y-3">
+                                <div class="flex items-center justify-between border-b border-slate-900 pb-2">
+                                    <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                        <i class="fa-solid fa-cloud-sun text-amber-400"></i>
+                                        Værvarsel for ${harbor.name} (Yr)
+                                    </span>
+                                    ${day.customWeather ? `
+                                        <button onclick="resetCustomWeather(${index})" class="text-[10px] text-teal-400 hover:underline"><i class="fa-solid fa-rotate-left"></i> Gjenopprett</button>
+                                    `:''}
+                                </div>
+
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                                    <div class="bg-slate-900/60 p-2 rounded-lg">
+                                        <span class="block text-[9px] text-slate-500 font-bold uppercase">Temperatur</span>
+                                        <span class="text-sm font-extrabold text-white">${weather.temp}°C</span>
+                                    </div>
+                                    <div class="bg-slate-900/60 p-2 rounded-lg">
+                                        <span class="block text-[9px] text-slate-500 font-bold uppercase">Middelvind</span>
+                                        <span class="text-sm font-extrabold block ${weather.windSpeed > 7 ? 'text-amber-400 animate-pulse' : 'text-white'}">${weather.windSpeed} m/s (${weather.windDir})</span>
+                                    </div>
+                                    <div class="bg-slate-900/60 p-2 rounded-lg">
+                                        <span class="block text-[9px] text-slate-500 font-bold uppercase">Vindkast</span>
+                                        <span class="text-sm font-extrabold block ${weather.gusts > 10 ? 'text-rose-400 animate-pulse' : 'text-white'}">${weather.gusts} m/s</span>
+                                    </div>
+                                    <div class="bg-slate-900/60 p-2 rounded-lg">
+                                        <span class="block text-[9px] text-slate-500 font-bold uppercase">Nedbør</span>
+                                        <span class="text-sm font-extrabold block ${weather.rainAmount > 0 ? 'text-sky-400' : 'text-slate-400'}">${weather.rainAmount} mm</span>
+                                    </div>
+                                </div>
+
+                                <!-- SAFETY NOTICES -->
+                                ${hasWarnings ? `
+                                    <div class="flex flex-wrap gap-2 mt-2 bg-slate-900/80 p-2.5 rounded-lg border border-amber-500/10 text-xs">
+                                        <span class="font-bold text-amber-400 flex items-center mr-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Risiko:</span>
+                                        ${isRainy ? `<span class="bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded font-semibold"><i class="fa-solid fa-cloud-showers-heavy"></i> Regn meldt</span>` : ''}
+                                        ${isWindy ? `<span class="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded font-semibold"><i class="fa-solid fa-wind animate-pulse"></i> Vind > 7m/s</span>` : ''}
+                                        ${isGusty ? `<span class="bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded font-semibold"><i class="fa-solid fa-bolt-lightning animate-pulse"></i> Kast > 10m/s</span>` : ''}
+                                    </div>
+                                ` : ''}
+
+                                <!-- CUSTOM TESTING RANGE SLIDERS -->
+                                <div class="pt-2 border-t border-slate-900">
+                                    <details class="group">
+                                        <summary class="list-none flex items-center justify-between cursor-pointer text-xs text-slate-500 font-semibold group-open:text-white">
+                                            <span><i class="fa-solid fa-sliders text-teal-500 mr-1"></i> Simuler endrede værforhold</span>
+                                            <i class="fa-solid fa-chevron-down group-open:rotate-180 transition-transform"></i>
+                                        </summary>
+                                        <div class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-900 p-3 rounded-lg">
+                                            <div>
+                                                <label class="block text-[10px] text-slate-400 mb-1">Middelvind: ${weather.windSpeed} m/s</label>
+                                                <input type="range" min="0" max="15" step="0.5" value="${weather.windSpeed}" oninput="updateWeatherSlider(${index}, 'windSpeed', this.value)" class="w-full accent-teal-500"/>
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] text-slate-400 mb-1">Vindkast: ${weather.gusts} m/s</label>
+                                                <input type="range" min="0" max="25" step="0.5" value="${weather.gusts}" oninput="updateWeatherSlider(${index}, 'gusts', this.value)" class="w-full accent-rose-500"/>
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] text-slate-400 mb-1">Regn: ${weather.rainAmount} mm</label>
+                                                <input type="range" min="0" max="12" step="0.2" value="${weather.rainAmount}" oninput="updateWeatherSlider(${index}, 'rainAmount', this.value)" class="w-full accent-sky-500"/>
+                                            </div>
+                                        </div>
+                                    </details>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Merknader & Huskeliste</label>
+                                <textarea oninput="updateDayNotes(${index}, this.value)" placeholder="F.eks. handle rødvin, betale havneavgift, hente ferske rundstykker..." rows="2" class="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-teal-500 outline-none">${day.customNotes || ''}</textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- INTERACTIVE IN-BETWEEN INSERTION POINT -->
+                    <div class="relative flex items-center justify-center group py-2 -my-2 no-print">
+                        <div class="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-teal-500/20 to-transparent scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
+                        <button onclick="insertDayAfter(${index})" class="relative z-10 px-3 py-1 bg-slate-950 hover:bg-teal-500 hover:text-slate-950 border border-slate-800 hover:border-teal-400 rounded-full text-[10px] font-bold text-slate-400 shadow-md transition-all duration-200 flex items-center gap-1 cursor-pointer">
+                            <i class="fa-solid fa-circle-plus text-teal-400 group-hover:text-slate-950"></i>
+                            Sett inn stoppested her
+                        </button>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', cardHtml);
+            });
+
+            // Render Dinners Tab
+            const dinnersGrid = document.getElementById("dinners-list-grid");
+            dinnersGrid.innerHTML = "";
+            state.dinners.forEach(din => {
+                const isSelectedCount = state.routeDays.filter(d => d.dinner === din).length;
+                const itemHtml = `
+                    <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl flex items-center justify-between hover:border-slate-700 transition">
+                        <div>
+                            <p class="text-sm font-bold text-slate-100">${din}</p>
+                            <p class="text-[9px] font-semibold text-teal-400 uppercase tracking-wider mt-1">${isSelectedCount > 0 ? 'Brukt på ' + isSelectedCount + ' dager' : 'Klar for valg'}</p>
+                        </div>
+                        <button onclick="removeDinnerIdea('${din}')" class="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg">
+                            <i class="fa-solid fa-trash-can text-sm"></i>
+                        </button>
+                    </div>
+                `;
+                dinnersGrid.insertAdjacentHTML('beforeend', itemHtml);
+            });
+
+            // Render Database Tab
+            const tableBody = document.getElementById("harbor-table-body");
+            tableBody.innerHTML = "";
+            HARBORS_DATABASE.forEach(h => {
+                const isPlanned = state.routeDays.some(d => d.harborId === h.id);
+                const rowHtml = `
+                    <tr class="border-b border-slate-800/60 hover:bg-slate-950/40 transition">
+                        <td class="px-4 py-3.5 font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-location-dot ${isPlanned ? 'text-teal-400' : 'text-slate-600'}"></i>
+                            ${h.name}
+                        </td>
+                        <td class="px-4 py-3.5 font-mono text-xs text-slate-400">${h.lat.toFixed(4)}°N, ${h.lng.toFixed(4)}°Ø</td>
+                        <td class="px-4 py-3.5">
+                            ${h.guideUrl ? `<a href="${h.guideUrl}" target="_blank" class="text-teal-400 hover:underline font-semibold flex items-center gap-1"><i class="fa-solid fa-book-open"></i> Gå til guide</a>` : '<span class="text-slate-600 italic">Ingen</span>'}
+                        </td>
+                        <td class="px-4 py-3.5">
+                            ${h.webcamUrl ? `<a href="${h.webcamUrl}" target="_blank" class="text-cyan-400 hover:underline font-semibold flex items-center gap-1"><i class="fa-solid fa-video"></i> Live webkamera</a>` : '<span class="text-slate-600 italic">Ingen</span>'}
+                        </td>
+                        <td class="px-4 py-3.5">
+                            <a href="${h.yrUrl}" target="_blank" class="text-sky-400 hover:underline font-semibold flex items-center gap-1"><i class="fa-solid fa-cloud"></i> Yr-varsel</a>
+                        </td>
+                    </tr>
+                `;
+                tableBody.insertAdjacentHTML('beforeend', rowHtml);
+            });
+
+            // Render Printable Summary Tab
+            document.getElementById("print-start-date").innerText = formatNorwegianDate(state.startDate, 0);
+            document.getElementById("print-total-days").innerText = `${state.routeDays.length} Dager`;
+            document.getElementById("print-total-distance").innerText = `${totalNM.toFixed(1)} NM (${totalKM.toFixed(0)} km)`;
+
+            // Compile warnings
+            const warningList = document.getElementById("print-warnings-list");
+            warningList.innerHTML = "";
+            let summaryWarningsCount = 0;
+
+            state.routeDays.forEach((day, i) => {
+                const weather = day.customWeather || generateWeather(day.harborId, i);
+                const harbor = HARBORS_DATABASE.find(h => h.id === day.harborId) || HARBORS_DATABASE[0];
+
+                const isRainy = weather.condition === "Rainy" || weather.rainAmount > 0;
+                const isWindy = weather.windSpeed > 7;
+                const isGusty = weather.gusts > 10;
+
+                if (isRainy || isWindy || isGusty) {
+                    summaryWarningsCount++;
+                    const items = [];
+                    if (isRainy) items.push(`Regn (${weather.rainAmount} mm)`);
+                    if (isWindy) items.push(`Middelvind over sikkerhetsgrense (${weather.windSpeed} m/s)`);
+                    if (isGusty) items.push(`Sterke vindkast (${weather.gusts} m/s)`);
+
+                    const li = document.createElement("li");
+                    li.className = "text-amber-950 font-medium";
+                    li.innerHTML = `<strong>Dag ${i + 1} (${harbor.name}):</strong> ${items.join(', ')}`;
+                    warningList.appendChild(li);
+                }
+            });
+
+            const warningsContainer = document.getElementById("print-warnings-container");
+            if (summaryWarningsCount > 0) {
+                warningsContainer.classList.remove("hidden");
+            } else {
+                warningsContainer.classList.add("hidden");
+            }
+
+            // Timeline container
+            const printTimeline = document.getElementById("print-timeline-container");
+            printTimeline.innerHTML = "";
+            state.routeDays.forEach((day, i) => {
+                const harbor = HARBORS_DATABASE.find(h => h.id === day.harborId) || HARBORS_DATABASE[0];
+                const weather = day.customWeather || generateWeather(day.harborId, i);
+                const distance = calculatedDistances[i];
+                const isBooked = !!day.booked;
+
+                const dayHtml = `
+                    <div class="p-4 bg-white border border-slate-300 rounded-xl space-y-2 text-slate-900 ${isBooked ? 'border-l-4 border-l-emerald-500' : ''}">
+                        <div class="flex justify-between items-center border-b pb-1">
+                            <span class="font-extrabold text-sm text-teal-800 flex items-center gap-1.5">
+                                DAG ${i + 1} - ${formatNorwegianDate(state.startDate, day.dateOffset)}
+                                ${isBooked ? '<span class="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[9px] font-black tracking-wide px-1.5 py-0.5 rounded-md"><i class="fa-solid fa-lock text-[8px]"></i> BESTILT & LÅST</span>' : ''}
+                            </span>
+                            <span class="text-xs font-semibold text-slate-500">${i === 0 ? 'Startsted' : '+' + distance.nm.toFixed(1) + ' NM'}</span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs pt-1">
+                            <div>
+                                <span class="block text-[10px] text-slate-400 font-bold uppercase">Sted</span>
+                                <span class="font-bold text-slate-900 text-sm">${harbor.name}</span>
+                                <span class="block text-slate-500 text-[10px]">${harbor.guideName || ''}</span>
+                            </div>
+                            <div>
+                                <span class="block text-[10px] text-slate-400 font-bold uppercase">Middag</span>
+                                <span class="font-bold text-slate-900 text-sm">${day.dinner || 'Ikke bestemt'}</span>
+                            </div>
+                            <div>
+                                <span class="block text-[10px] text-slate-400 font-bold uppercase">Melding</span>
+                                <span class="font-medium text-slate-700 block">${weather.temp}°C, vind ${weather.windSpeed} m/s (${weather.windDir}), kast ${weather.gusts} m/s.</span>
+                            </div>
+                        </div>
+                        ${day.customNotes ? `
+                            <div class="text-[11px] bg-slate-50 p-2 rounded border border-slate-200 text-slate-600 mt-1">
+                                <strong>Logg / Notater:</strong> ${day.customNotes}
+                            </div>
+                        `:''}
+                    </div>
+                `;
+                printTimeline.insertAdjacentHTML('beforeend', dayHtml);
+            });
+
+            // Update map path
+            drawMapRoute();
+        }
+
+        // 8. LIFECYCLE INITIALIZER ON DOM READY
+        window.onload = function() {
+            loadSavedState();
+            initializeDatePicker();
+            initializeMap();
+            renderAll();
+        };
+    </script>
+</body>
+</html>
