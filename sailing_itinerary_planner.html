@@ -629,7 +629,7 @@
             }, 3500);
         }
 
-        // Fetch Live Weather directly from MET Norway API
+        // Fetch Live Weather directly from MET Norway API (Locationforecast or Subseasonal)
         async function fetchMETWeather(index, harborId) {
             const key = `${index}_${harborId}`;
             if (fetchStatus[key] === "loading" || fetchStatus[key] === "success") return;
@@ -643,15 +643,15 @@
             const today = new Date();
             today.setHours(0,0,0,0);
 
-            // MET offers forecast up to 10 days out
-            const maxForecastDate = new Date();
-            maxForecastDate.setDate(maxForecastDate.getDate() + 10);
-            maxForecastDate.setHours(23,59,59,999);
+            const diffTime = plannedDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-            const minForecastDate = new Date();
-            minForecastDate.setDate(minForecastDate.getDate() - 1); // Allow past day if still partially in sliding dataset
-
-            if (plannedDate < minForecastDate || plannedDate > maxForecastDate) {
+            let mode = "none";
+            if (diffDays >= -1 && diffDays <= 10) {
+                mode = "locationforecast";
+            } else if (diffDays > 10 && diffDays <= 21) {
+                mode = "subseasonal";
+            } else {
                 fetchStatus[key] = "out_of_range";
                 return;
             }
@@ -663,9 +663,19 @@
             renderWeatherBoxLoading(index);
 
             try {
-                // Request locationforecast/2.0 from MET Norway
-                const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${harbor.lat.toFixed(4)}&lon=${harbor.lng.toFixed(4)}`;
-                const response = await fetch(url);
+                let url = "";
+                if (mode === "locationforecast") {
+                    url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${harbor.lat.toFixed(4)}&lon=${harbor.lng.toFixed(4)}`;
+                } else {
+                    url = `https://api.met.no/weatherapi/subseasonal/1.0/complete?lat=${harbor.lat.toFixed(4)}&lon=${harbor.lng.toFixed(4)}`;
+                }
+
+                // Identify client responsibly in accordance with MET Terms of Service
+                const response = await fetch(url, {
+                    headers: {
+                        'User-Agent': 'SailingItineraryPlanner2026/1.0 (sailing@example.com)'
+                    }
+                });
                 
                 if (!response.ok) {
                     throw new Error(`MET Norway API status: ${response.status}`);
@@ -674,17 +684,21 @@
                 const data = await response.json();
                 const timeseries = data.properties.timeseries;
 
-                // Match timeseries closest to midday (12:00:00 UTC) on planned day
                 const targetDateStr = plannedDate.toISOString().split('T')[0];
                 let bestEntry = null;
                 let minDiff = Infinity;
 
                 timeseries.forEach(entry => {
                     if (entry.time.startsWith(targetDateStr)) {
-                        const entryHour = new Date(entry.time).getUTCHours();
-                        const diff = Math.abs(entryHour - 12);
-                        if (diff < minDiff) {
-                            minDiff = diff;
+                        if (mode === "locationforecast") {
+                            const entryHour = new Date(entry.time).getUTCHours();
+                            const diff = Math.abs(entryHour - 12);
+                            if (diff < minDiff) {
+                                minDiff = diff;
+                                bestEntry = entry;
+                            }
+                        } else {
+                            // Subseasonal delivers daily objects directly
                             bestEntry = entry;
                         }
                     }
@@ -703,33 +717,58 @@
                 }
 
                 if (bestEntry) {
-                    const details = bestEntry.data.instant.details;
-                    const next6h = bestEntry.data.next_6_hours || bestEntry.data.next_1_hours;
+                    if (mode === "locationforecast") {
+                        const details = bestEntry.data.instant.details;
+                        const next6h = bestEntry.data.next_6_hours || bestEntry.data.next_1_hours;
 
-                    const temp = details.air_temperature;
-                    const windSpeed = details.wind_speed;
-                    const gusts = details.wind_gust || parseFloat((windSpeed * 1.3).toFixed(1));
-                    const windDir = degToCompass(details.wind_from_direction);
-                    const rainAmount = next6h ? (next6h.details.precipitation_amount || 0) : 0;
+                        const temp = details.air_temperature;
+                        const windSpeed = details.wind_speed;
+                        const gusts = details.wind_gust || parseFloat((windSpeed * 1.3).toFixed(1));
+                        const windDir = degToCompass(details.wind_from_direction);
+                        const rainAmount = next6h ? (next6h.details.precipitation_amount || 0) : 0;
 
-                    let condition = "Sunny";
-                    const symbolCode = next6h ? next6h.summary.symbol_code : "clearsky";
-                    if (symbolCode.includes("rain") || symbolCode.includes("sleet") || symbolCode.includes("snow") || symbolCode.includes("showers")) {
-                        condition = "Rainy";
-                    } else if (symbolCode.includes("cloud") || symbolCode.includes("fog")) {
-                        condition = "Cloudy";
+                        let condition = "Sunny";
+                        const symbolCode = next6h ? next6h.summary.symbol_code : "clearsky";
+                        if (symbolCode.includes("rain") || symbolCode.includes("sleet") || symbolCode.includes("snow") || symbolCode.includes("showers")) {
+                            condition = "Rainy";
+                        } else if (symbolCode.includes("cloud") || symbolCode.includes("fog")) {
+                            condition = "Cloudy";
+                        }
+
+                        liveWeatherData[key] = {
+                            temp,
+                            windSpeed,
+                            gusts,
+                            condition,
+                            rainAmount,
+                            windDir,
+                            symbolCode,
+                            isLive: true,
+                            isSubseasonal: false
+                        };
+                    } else {
+                        // Subseasonal parsing (Next 24 hours block)
+                        const details = bestEntry.data.next_24_hours ? bestEntry.data.next_24_hours.details : null;
+                        if (details) {
+                            const temp = details.air_temperature_mean !== undefined ? details.air_temperature_mean : (details.air_temperature_max || 15);
+                            const rainAmount = details.precipitation_amount || 0;
+
+                            liveWeatherData[key] = {
+                                temp: parseFloat(temp.toFixed(1)),
+                                windSpeed: null, // Wind is not defined in Subseasonal MET outputs
+                                gusts: null,
+                                condition: rainAmount > 1.0 ? "Rainy" : "Sunny",
+                                rainAmount: parseFloat(rainAmount.toFixed(1)),
+                                windDir: null,
+                                symbolCode: rainAmount > 1.0 ? "rain" : "clearsky",
+                                isLive: true,
+                                isSubseasonal: true
+                            };
+                        } else {
+                            fetchStatus[key] = "no_data";
+                            return;
+                        }
                     }
-
-                    liveWeatherData[key] = {
-                        temp,
-                        windSpeed,
-                        gusts,
-                        condition,
-                        rainAmount,
-                        windDir,
-                        symbolCode,
-                        isLive: true
-                    };
                     fetchStatus[key] = "success";
                 } else {
                     fetchStatus[key] = "no_data";
@@ -1417,7 +1456,7 @@
                 weatherSnapshots.push(weather);
 
                 if (weather.condition === "Rainy" || weather.rainAmount > 0) rainAlerts++;
-                if (weather.windSpeed > 7 || weather.gusts > 10) windAlerts++;
+                if (weather.windSpeed !== null && (weather.windSpeed > 7 || weather.gusts > 10)) windAlerts++;
 
                 if (i === 0) {
                     calculatedDistances.push({ nm: 0, km: 0 });
@@ -1454,8 +1493,8 @@
                 const distance = calculatedDistances[index];
 
                 const isRainy = weather.condition === "Rainy" || weather.rainAmount > 0;
-                const isWindy = weather.windSpeed > 7;
-                const isGusty = weather.gusts > 10;
+                const isWindy = weather.windSpeed !== null && weather.windSpeed > 7;
+                const isGusty = weather.gusts !== null && weather.gusts > 10;
                 const hasWarnings = isRainy || isWindy || isGusty;
                 const isBooked = !!day.booked;
 
@@ -1473,10 +1512,17 @@
                 } else if (weatherFetchStatus === "loading") {
                     weatherBadgeHtml = `<span class="bg-slate-500/10 text-slate-400 border border-slate-500/20 px-2 py-0.5 rounded text-[10px] font-bold"><i class="fa-solid fa-spinner animate-spin"></i> Henter...</span>`;
                 } else if (weather.isLive) {
-                    weatherBadgeHtml = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-black"><i class="fa-solid fa-satellite"></i> 🟢 Live MET-varsel</span>`;
+                    if (weather.isSubseasonal) {
+                        weatherBadgeHtml = `<span class="bg-teal-500/10 text-teal-400 border border-teal-500/20 px-2 py-0.5 rounded text-[10px] font-black"><i class="fa-solid fa-satellite animate-pulse"></i> 🔵 MET 21-dagersvarsel</span>`;
+                    } else {
+                        weatherBadgeHtml = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-black"><i class="fa-solid fa-satellite"></i> 🟢 Live MET-varsel</span>`;
+                    }
                 } else {
                     weatherBadgeHtml = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-semibold"><i class="fa-solid fa-triangle-exclamation"></i> ⏳ Simulert (Utenfor live-periode)</span>`;
                 }
+
+                const windDisplay = weather.windSpeed !== null ? `${weather.windSpeed} m/s (${weather.windDir || ''})` : `<span class="text-slate-500 italic" title="Vinddata er ikke tilgjengelig i subseasonal-modell">-</span>`;
+                const gustsDisplay = weather.gusts !== null ? `${weather.gusts} m/s` : `<span class="text-slate-500 italic" title="Vinddata er ikke tilgjengelig i subseasonal-modell">-</span>`;
 
                 // Build Day Card with conditional design classes based on booking status
                 const cardHtml = `
@@ -1577,11 +1623,11 @@
                                     </div>
                                     <div class="bg-slate-900/60 p-2 rounded-lg">
                                         <span class="block text-[9px] text-slate-500 font-bold uppercase">Middelvind</span>
-                                        <span class="text-sm font-extrabold block ${weather.windSpeed > 7 ? 'text-amber-400 animate-pulse' : 'text-white'}">${weather.windSpeed} m/s (${weather.windDir})</span>
+                                        <span class="text-sm font-extrabold block ${weather.windSpeed !== null && weather.windSpeed > 7 ? 'text-amber-400 animate-pulse' : 'text-white'}">${windDisplay}</span>
                                     </div>
                                     <div class="bg-slate-900/60 p-2 rounded-lg">
                                         <span class="block text-[9px] text-slate-500 font-bold uppercase">Vindkast</span>
-                                        <span class="text-sm font-extrabold block ${weather.gusts > 10 ? 'text-rose-400 animate-pulse' : 'text-white'}">${weather.gusts} m/s</span>
+                                        <span class="text-sm font-extrabold block ${weather.gusts !== null && weather.gusts > 10 ? 'text-rose-400 animate-pulse' : 'text-white'}">${gustsDisplay}</span>
                                     </div>
                                     <div class="bg-slate-900/60 p-2 rounded-lg">
                                         <span class="block text-[9px] text-slate-500 font-bold uppercase">Nedbør</span>
@@ -1608,12 +1654,12 @@
                                         </summary>
                                         <div class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-900 p-3 rounded-lg">
                                             <div>
-                                                <label class="block text-[10px] text-slate-400 mb-1">Middelvind: ${weather.windSpeed} m/s</label>
-                                                <input type="range" min="0" max="15" step="0.5" value="${weather.windSpeed}" oninput="updateWeatherSlider(${index}, 'windSpeed', this.value)" class="w-full accent-teal-500"/>
+                                                <label class="block text-[10px] text-slate-400 mb-1">Middelvind: ${weather.windSpeed !== null ? weather.windSpeed : '-'} m/s</label>
+                                                <input type="range" min="0" max="15" step="0.5" value="${weather.windSpeed !== null ? weather.windSpeed : 5}" oninput="updateWeatherSlider(${index}, 'windSpeed', this.value)" class="w-full accent-teal-500" ${weather.windSpeed === null ? 'disabled' : ''}/>
                                             </div>
                                             <div>
-                                                <label class="block text-[10px] text-slate-400 mb-1">Vindkast: ${weather.gusts} m/s</label>
-                                                <input type="range" min="0" max="25" step="0.5" value="${weather.gusts}" oninput="updateWeatherSlider(${index}, 'gusts', this.value)" class="w-full accent-rose-500"/>
+                                                <label class="block text-[10px] text-slate-400 mb-1">Vindkast: ${weather.gusts !== null ? weather.gusts : '-'} m/s</label>
+                                                <input type="range" min="0" max="25" step="0.5" value="${weather.gusts !== null ? weather.gusts : 8}" oninput="updateWeatherSlider(${index}, 'gusts', this.value)" class="w-full accent-rose-500" ${weather.gusts === null ? 'disabled' : ''}/>
                                             </div>
                                             <div>
                                                 <label class="block text-[10px] text-slate-400 mb-1">Regn: ${weather.rainAmount} mm</label>
@@ -1703,8 +1749,8 @@
                 const harbor = HARBORS_DATABASE.find(h => h.id === day.harborId) || HARBORS_DATABASE[0];
 
                 const isRainy = weather.condition === "Rainy" || weather.rainAmount > 0;
-                const isWindy = weather.windSpeed > 7;
-                const isGusty = weather.gusts > 10;
+                const isWindy = weather.windSpeed !== null && weather.windSpeed > 7;
+                const isGusty = weather.gusts !== null && weather.gusts > 10;
 
                 if (isRainy || isWindy || isGusty) {
                     summaryWarningsCount++;
@@ -1757,7 +1803,7 @@
                             </div>
                             <div>
                                 <span class="block text-[10px] text-slate-400 font-bold uppercase">Melding</span>
-                                <span class="font-medium text-slate-700 block">${weather.temp}°C, vind ${weather.windSpeed} m/s (${weather.windDir}), kast ${weather.gusts} m/s. ${weather.isLive ? '(Live MET)' : '(Simulert)'}</span>
+                                <span class="font-medium text-slate-700 block">${weather.temp}°C, vind ${weather.windSpeed !== null ? weather.windSpeed + ' m/s' : '-'}, kast ${weather.gusts !== null ? weather.gusts + ' m/s' : '-'}. ${weather.isLive ? (weather.isSubseasonal ? '(21-dagers MET)' : '(Live MET)') : '(Simulert)'}</span>
                             </div>
                         </div>
                         ${day.customNotes ? `
