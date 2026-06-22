@@ -245,6 +245,24 @@
                         </div>
                     </div>
 
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wide">
+                            Båtens fart (knop):
+                        </label>
+                        <div class="relative">
+                            <i class="fa-solid fa-gauge-high absolute left-3 top-3 text-teal-400"></i>
+                            <input 
+                                type="number" 
+                                id="input-speed-knots" 
+                                step="0.5"
+                                min="1"
+                                max="40"
+                                onchange="updateSpeed(this.value)"
+                                class="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 pl-10 pr-4 text-white font-medium focus:ring-2 focus:ring-teal-500 outline-none text-sm"
+                            />
+                        </div>
+                    </div>
+
                     <!-- SAVED ROUTES ARCHIVE -->
                     <div class="border-t border-slate-800 pt-4 space-y-3">
                         <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
@@ -386,14 +404,15 @@
             <div class="lg:col-span-5 space-y-6">
                 <!-- ADD CUSTOM HARBOR FORM -->
                 <div class="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-lg space-y-4">
-                    <h3 class="font-bold text-lg text-white border-b border-slate-800 pb-2 flex items-center gap-2">
+                    <h3 id="harbor-form-title" class="font-bold text-lg text-white border-b border-slate-800 pb-2 flex items-center gap-2">
                         <i class="fa-solid fa-circle-plus text-teal-400"></i>
                         Legg til ny havn i arkivet
                     </h3>
-                    <p class="text-xs text-slate-400 leading-normal">Fyll ut infoen under, eller <strong>klikk direkte på kartet</strong> under for å fylle inn koordinatene automatisk!</p>
+                    <p id="harbor-form-help" class="text-xs text-slate-400 leading-normal">Fyll ut infoen under, eller <strong>klikk direkte på kartet</strong> under for å fylle inn koordinatene automatisk!</p>
                     
                     <div class="space-y-3">
                         <div>
+                            <input type="hidden" id="edit-harbor-id" value="" />
                             <label class="block text-xs font-semibold text-slate-400 mb-1">Havnenavn*</label>
                             <input type="text" id="new-harbor-name" placeholder="F.eks. Strømstad, Sandspollen..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:ring-2 focus:ring-teal-500 outline-none" />
                         </div>
@@ -431,9 +450,14 @@
                         </div>
                     </div>
 
-                    <button onclick="addNewCustomHarbor()" class="w-full py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl text-sm font-extrabold transition duration-200 shadow-md">
-                        Lagre havn i arkivet
-                    </button>
+                    <div class="flex gap-2 pt-2">
+                        <button id="btn-cancel-edit" onclick="cancelEditHarbor()" class="hidden flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-bold transition duration-200">
+                            Avbryt
+                        </button>
+                        <button id="btn-submit-harbor" onclick="addNewCustomHarbor()" class="flex-[2] py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl text-sm font-extrabold transition duration-200 shadow-md">
+                            Lagre havn i arkivet
+                        </button>
+                    </div>
                 </div>
 
                 <!-- NEW HARBORS DATABASE MAP -->
@@ -447,7 +471,7 @@
                     <div id="harbors-db-map" class="h-[300px] w-full bg-marine-950"></div>
                     <div class="p-3 bg-slate-950 text-[11px] text-slate-400 flex items-center gap-2">
                         <i class="fa-solid fa-circle-dot text-teal-400 animate-pulse"></i>
-                        <span>Klikk hvor som helst i kartet for å hente ut koordinater til skjemaet.</span>
+                        <span id="db-map-instructions">Klikk hvor som helst i kartet for å hente ut koordinater til skjemaet.</span>
                     </div>
                 </div>
             </div>
@@ -471,6 +495,7 @@
                                 <th scope="col" class="px-4 py-3">Norsk Havneguide</th>
                                 <th scope="col" class="px-4 py-3">Live Webkamera</th>
                                 <th scope="col" class="px-4 py-3">Yr-varsel</th>
+                                <th scope="col" class="px-4 py-3 text-center">Handling</th>
                             </tr>
                         </thead>
                         <tbody id="harbor-table-body"></tbody>
@@ -608,8 +633,12 @@
                 { dateOffset: 3, harborId: "skjaerhalden", dinner: "Fiskeburger", customNotes: "Krysser fjorden i dag.", customWeather: null, booked: true }
             ],
             harbors: [...HARBORS_DATABASE], // Made dynamic so users can expand it
-            selectedTab: "planner"
+            selectedTab: "planner",
+            speedKnots: 6
         };
+
+        // Track state for harbor editing
+        let editingHarborId = null;
 
         // Cache for live fetched MET weather data
         let liveWeatherData = {};
@@ -666,6 +695,16 @@
             const month = String(dateObj.getMonth() + 1).padStart(2, '0');
             const year = dateObj.getFullYear();
             return `${day}/${month}/${year}`;
+        }
+
+        // Formats hours to standard Norwegian written format (e.g., 2t 15m)
+        function formatDuration(hours) {
+            if (!hours || hours <= 0) return "0m";
+            const h = Math.floor(hours);
+            const m = Math.round((hours - h) * 60);
+            if (h === 0) return `${m}m`;
+            if (m === 0) return `${h}t`;
+            return `${h}t ${m}m`;
         }
 
         function degToCompass(num) {
@@ -867,6 +906,9 @@
                     }
                 }
 
+                const savedSpeed = localStorage.getItem("seil_speedKnots");
+                if (savedSpeed) state.speedKnots = parseFloat(savedSpeed);
+
                 const savedDinners = localStorage.getItem("seil_dinners");
                 if (savedDinners) state.dinners = JSON.parse(savedDinners);
 
@@ -880,6 +922,7 @@
 
         function persistState() {
             safeLocalStorageSet("seil_startDate", state.startDate);
+            safeLocalStorageSet("seil_speedKnots", state.speedKnots);
             safeLocalStorageSet("seil_dinners", state.dinners);
             safeLocalStorageSet("seil_routeDays", state.routeDays);
             safeLocalStorageSet("seil_harbors", state.harbors);
@@ -1005,6 +1048,12 @@
             renderAll();
         }
 
+        function updateSpeed(val) {
+            state.speedKnots = parseFloat(val) || 6;
+            persistState();
+            renderAll();
+        }
+
         function updateDayHarbor(index, harborId) {
             state.routeDays[index].harborId = harborId;
             persistState();
@@ -1113,6 +1162,67 @@
             renderAll();
         }
 
+        function editHarbor(harborId) {
+            const harbor = state.harbors.find(h => h.id === harborId);
+            if (!harbor) return;
+
+            editingHarborId = harborId;
+
+            // Fill form inputs
+            document.getElementById("edit-harbor-id").value = harbor.id;
+            document.getElementById("new-harbor-name").value = harbor.name;
+            document.getElementById("new-harbor-lat").value = harbor.lat;
+            document.getElementById("new-harbor-lng").value = harbor.lng;
+            document.getElementById("new-harbor-guide-name").value = harbor.guideName || "";
+            document.getElementById("new-harbor-guide-url").value = harbor.guideUrl || "";
+            document.getElementById("new-harbor-webcam-url").value = harbor.webcamUrl || "";
+            document.getElementById("new-harbor-yr-url").value = harbor.yrUrl || "";
+
+            // Toggle form appearance to edit-mode
+            document.getElementById("harbor-form-title").innerHTML = `<i class="fa-solid fa-pen-to-square text-amber-400"></i> Rediger havn: ${harbor.name}`;
+            document.getElementById("harbor-form-help").innerHTML = `Havnenålen på kartet har blitt gul og pulserende. <strong>Dra nålen direkte på kartet</strong> for å endre posisjonen dens!`;
+            document.getElementById("btn-cancel-edit").classList.remove("hidden");
+            document.getElementById("btn-submit-harbor").innerText = "Lagre endringer";
+            document.getElementById("btn-submit-harbor").className = "flex-[2] py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-sm font-extrabold transition duration-200 shadow-md";
+            document.getElementById("db-map-instructions").innerHTML = `Dra det gule ankeret for å flytte posisjonen til "${harbor.name}".`;
+
+            // Scroll to the edit form smoothly on desktop
+            document.getElementById("harbor-form-title").scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            // Redraw maps to reflect active editing marker dragging
+            drawDatabaseMapRoutes();
+            showToast(`Redigeringsmodus aktiv for ${harbor.name}. Du kan nå flytte den direkte i kartet!`, "info");
+        }
+
+        function cancelEditHarbor() {
+            editingHarborId = null;
+
+            // Clear inputs
+            document.getElementById("edit-harbor-id").value = "";
+            document.getElementById("new-harbor-name").value = "";
+            document.getElementById("new-harbor-lat").value = "";
+            document.getElementById("new-harbor-lng").value = "";
+            document.getElementById("new-harbor-guide-name").value = "";
+            document.getElementById("new-harbor-guide-url").value = "";
+            document.getElementById("new-harbor-webcam-url").value = "";
+            document.getElementById("new-harbor-yr-url").value = "";
+
+            // Reset form UI
+            document.getElementById("harbor-form-title").innerHTML = `<i class="fa-solid fa-circle-plus text-teal-400"></i> Legg til ny havn i arkivet`;
+            document.getElementById("harbor-form-help").innerHTML = `Fyll ut infoen under, eller <strong>klikk direkte på kartet</strong> under for å fylle inn koordinatene automatisk!`;
+            document.getElementById("btn-cancel-edit").classList.add("hidden");
+            document.getElementById("btn-submit-harbor").innerText = "Lagre havn i arkivet";
+            document.getElementById("btn-submit-harbor").className = "w-full py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl text-sm font-extrabold transition duration-200 shadow-md";
+            document.getElementById("db-map-instructions").innerHTML = `Klikk hvor som helst i kartet for å hente ut koordinater til skjemaet.`;
+
+            if (dbTempMarker) {
+                dbTempMarker.remove();
+                dbTempMarker = null;
+            }
+
+            drawDatabaseMapRoutes();
+        }
+
         function addNewCustomHarbor() {
             const nameEl = document.getElementById("new-harbor-name");
             const latEl = document.getElementById("new-harbor-lat");
@@ -1131,6 +1241,30 @@
                 return;
             }
 
+            if (editingHarborId) {
+                // Update existing harbor in array
+                const index = state.harbors.findIndex(h => h.id === editingHarborId);
+                if (index !== -1) {
+                    state.harbors[index] = {
+                        ...state.harbors[index],
+                        name: name,
+                        lat: lat,
+                        lng: lng,
+                        guideName: descEl.value.trim() || name,
+                        guideUrl: guideEl.value.trim() || `https://harbourguide.com/no/search?q=${encodeURIComponent(name)}`,
+                        webcamUrl: webcamEl.value.trim(),
+                        yrUrl: yrEl.value.trim() || `https://www.yr.no/nb/søk?q=${encodeURIComponent(name)}`
+                    };
+                    
+                    persistState();
+                    showToast(`"${name}" ble oppdatert!`, "success");
+                    cancelEditHarbor();
+                    renderAll();
+                }
+                return;
+            }
+
+            // Otherwise, flow is normal harbor addition
             const cleanId = name.toLowerCase().replace(/[^a-z0-9]/g, "_");
 
             if (state.harbors.some(h => h.id === cleanId)) {
@@ -1510,6 +1644,8 @@
 
                 // Add map click listener to automatically capture coordinates
                 dbMap.on('click', function(e) {
+                    if (editingHarborId) return; // Ignore general clicking on map if in edit mode
+
                     document.getElementById('new-harbor-lat').value = e.latlng.lat.toFixed(5);
                     document.getElementById('new-harbor-lng').value = e.latlng.lng.toFixed(5);
                     
@@ -1549,26 +1685,62 @@
 
             state.harbors.forEach(harbor => {
                 const isPlanned = state.routeDays.some(d => d.harborId === harbor.id);
-                const markerColor = isPlanned ? "#10b981" : "#64748b";
-                const markerRadius = isPlanned ? 8 : 6;
+                const isEditingThis = editingHarborId === harbor.id;
 
-                const marker = L.circleMarker([harbor.lat, harbor.lng], {
-                    radius: markerRadius,
-                    fillColor: markerColor,
-                    color: "#ffffff",
-                    weight: 1.5,
-                    fillOpacity: 0.8
-                }).addTo(dbMap);
+                if (isEditingThis) {
+                    // Create standard draggable marker for the harbor being edited
+                    const marker = L.marker([harbor.lat, harbor.lng], {
+                        draggable: true,
+                        icon: L.divIcon({
+                            html: '<div class="relative flex items-center justify-center"><span class="animate-ping absolute inline-flex h-8 w-8 rounded-full bg-amber-400 opacity-60"></span><i class="fa-solid fa-anchor text-amber-400 text-2xl relative drop-shadow-lg"></i></div>',
+                            iconSize: [28, 28],
+                            iconAnchor: [14, 14]
+                        })
+                    }).addTo(dbMap);
 
-                marker.bindPopup(`
-                    <div class="p-1">
-                        <h4 class="font-bold text-sm text-white">${harbor.name}</h4>
-                        <p class="text-[10px] text-sky-200 mt-0.5">${harbor.guideName || ''}</p>
-                        <p class="text-[10px] text-teal-400 font-bold uppercase tracking-wider mt-1">${isPlanned ? '📅 Planlagt i rute' : 'Klar for utvalg'}</p>
-                    </div>
-                `);
+                    marker.bindPopup(`
+                        <div class="p-1">
+                            <h4 class="font-bold text-sm text-amber-300">Flytter: ${harbor.name}</h4>
+                            <p class="text-[10px] text-slate-200 mt-0.5">Dra meg dit du vil og klikk "Lagre endringer" til venstre.</p>
+                        </div>
+                    `).openPopup();
 
-                dbMapMarkers.push(marker);
+                    // Real-time coordinates reflection
+                    marker.on('drag', function(event) {
+                        const pos = event.target.getLatLng();
+                        document.getElementById('new-harbor-lat').value = pos.lat.toFixed(5);
+                        document.getElementById('new-harbor-lng').value = pos.lng.toFixed(5);
+                    });
+
+                    marker.on('dragend', function(event) {
+                        const pos = event.target.getLatLng();
+                        showToast(`Posisjonen til "${harbor.name}" er flyttet på kartet. Husk å trykke på "Lagre endringer"!`, "info");
+                    });
+
+                    dbMapMarkers.push(marker);
+                } else {
+                    // Normal static circle markers for everything else
+                    const markerColor = isPlanned ? "#10b981" : "#64748b";
+                    const markerRadius = isPlanned ? 8 : 6;
+
+                    const marker = L.circleMarker([harbor.lat, harbor.lng], {
+                        radius: markerRadius,
+                        fillColor: markerColor,
+                        color: "#ffffff",
+                        weight: 1.5,
+                        fillOpacity: 0.8
+                    }).addTo(dbMap);
+
+                    marker.bindPopup(`
+                        <div class="p-1">
+                            <h4 class="font-bold text-sm text-white">${harbor.name}</h4>
+                            <p class="text-[10px] text-sky-200 mt-0.5">${harbor.guideName || ''}</p>
+                            <p class="text-[10px] text-teal-400 font-bold uppercase tracking-wider mt-1">${isPlanned ? '📅 Planlagt i rute' : 'Klar for utvalg'}</p>
+                        </div>
+                    `);
+
+                    dbMapMarkers.push(marker);
+                }
             });
         }
 
@@ -1613,6 +1785,7 @@
 
         function renderAll() {
             document.getElementById("input-start-date").value = state.startDate;
+            document.getElementById("input-speed-knots").value = state.speedKnots;
 
             let totalNM = 0;
             let totalKM = 0;
@@ -1657,8 +1830,10 @@
                 }
             });
 
+            const totalHours = totalNM / state.speedKnots;
+
             document.getElementById("stat-days").innerText = `${state.routeDays.length} Dager`;
-            document.getElementById("stat-distance").innerText = `${totalNM.toFixed(1)} NM (${totalKM.toFixed(0)} km)`;
+            document.getElementById("stat-distance").innerText = `${totalNM.toFixed(1)} NM (~${formatDuration(totalHours)})`;
             document.getElementById("stat-wind-alerts").innerText = `${windAlerts} dager`;
             document.getElementById("stat-rain-alerts").innerText = `${rainAlerts} dager`;
 
@@ -1671,6 +1846,7 @@
                 const harbor = state.harbors.find(h => h.id === day.harborId) || state.harbors[0];
                 const weather = weatherSnapshots[index];
                 const distance = calculatedDistances[index];
+                const hours = distance.nm / state.speedKnots;
 
                 const isRainy = weather.condition === "Rainy" || weather.rainAmount > 0;
                 const isWindy = weather.windSpeed !== null && weather.windSpeed > 7;
@@ -1703,6 +1879,8 @@
                 const windDisplay = weather.windSpeed !== null ? `${weather.windSpeed} m/s (${weather.windDir || ''})` : `<span class="text-slate-500 italic" title="Vinddata er ikke tilgjengelig i subseasonal-modell">-</span>`;
                 const gustsDisplay = weather.gusts !== null ? `${weather.gusts} m/s` : `<span class="text-slate-500 italic" title="Vinddata er ikke tilgjengelig i subseasonal-modell">-</span>`;
 
+                const legInfo = index === 0 ? 'Startsted' : `${distance.nm.toFixed(1)} NM (${distance.km.toFixed(0)} km) · ~${formatDuration(hours)} i ${state.speedKnots} knop`;
+
                 const cardHtml = `
                     <div class="bg-slate-900 rounded-2xl border transition-all duration-300 overflow-hidden shadow-lg ${isBooked ? 'border-emerald-500/60 ring-2 ring-emerald-500/10' : hasWarnings ? 'border-amber-500/30 ring-1 ring-amber-500/10' : 'border-slate-800'} no-print">
                         <div class="bg-slate-900 border-b border-slate-800 px-5 py-4 flex flex-wrap items-center justify-between gap-3">
@@ -1715,7 +1893,7 @@
                                         <p class="text-sm font-bold text-white">${formatNorwegianDate(state.startDate, day.dateOffset)}</p>
                                         ${isBooked ? '<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black tracking-wider px-2 py-0.5 rounded-lg flex items-center gap-1"><i class="fa-solid fa-lock text-[8px]"></i> BESTILT</span>' : ''}
                                     </div>
-                                    <p class="text-xs text-slate-400">Leggdistanse: ${index === 0 ? 'Startsted' : distance.nm.toFixed(1) + ' NM (' + distance.km.toFixed(1) + ' km)'}</p>
+                                    <p class="text-xs text-slate-400">Leggdistanse: ${legInfo}</p>
                                 </div>
                             </div>
 
@@ -1887,10 +2065,12 @@
             tableBody.innerHTML = "";
             state.harbors.forEach(h => {
                 const isPlanned = state.routeDays.some(d => d.harborId === h.id);
+                const isBeingEdited = editingHarborId === h.id;
+
                 const rowHtml = `
-                    <tr class="border-b border-slate-800/60 hover:bg-slate-950/40 transition">
+                    <tr class="border-b border-slate-800/60 hover:bg-slate-950/40 transition ${isBeingEdited ? 'bg-amber-500/10 border-amber-500/30' : ''}">
                         <td class="px-4 py-3.5 font-bold text-white flex items-center gap-2">
-                            <i class="fa-solid fa-location-dot ${isPlanned ? 'text-teal-400' : 'text-slate-600'}"></i>
+                            <i class="fa-solid fa-location-dot ${isBeingEdited ? 'text-amber-400' : isPlanned ? 'text-teal-400' : 'text-slate-600'}"></i>
                             ${h.name}
                         </td>
                         <td class="px-4 py-3.5 font-mono text-xs text-slate-400">${h.lat.toFixed(4)}°N, ${h.lng.toFixed(4)}°Ø</td>
@@ -1903,6 +2083,11 @@
                         <td class="px-4 py-3.5">
                             <a href="${h.yrUrl}" target="_blank" class="text-sky-400 hover:underline font-semibold flex items-center gap-1"><i class="fa-solid fa-cloud"></i> Yr-varsel</a>
                         </td>
+                        <td class="px-4 py-3.5 text-center">
+                            <button onclick="editHarbor('${h.id}')" class="px-3 py-1 bg-amber-500/10 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/30 text-amber-400 rounded-lg text-xs font-bold transition flex items-center gap-1 mx-auto">
+                                <i class="fa-solid fa-pen-to-square text-[10px]"></i> Rediger
+                            </button>
+                        </td>
                     </tr>
                 `;
                 tableBody.insertAdjacentHTML('beforeend', rowHtml);
@@ -1911,7 +2096,7 @@
             // Render Printable Summary Tab
             document.getElementById("print-start-date").innerText = formatNorwegianDate(state.startDate, 0);
             document.getElementById("print-total-days").innerText = `${state.routeDays.length} Dager`;
-            document.getElementById("print-total-distance").innerText = `${totalNM.toFixed(1)} NM (${totalKM.toFixed(0)} km)`;
+            document.getElementById("print-total-distance").innerText = `${totalNM.toFixed(1)} NM (~${formatDuration(totalHours)})`;
 
             const warningList = document.getElementById("print-warnings-list");
             warningList.innerHTML = "";
@@ -1952,6 +2137,7 @@
                 const harbor = state.harbors.find(h => h.id === day.harborId) || state.harbors[0];
                 const weather = weatherSnapshots[i];
                 const distance = calculatedDistances[i];
+                const hours = distance.nm / state.speedKnots;
                 const isBooked = !!day.booked;
 
                 const dayHtml = `
@@ -1961,7 +2147,7 @@
                                 DAG ${i + 1} - ${formatNorwegianDate(state.startDate, day.dateOffset)}
                                 ${isBooked ? '<span class="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[9px] font-black tracking-wide px-1.5 py-0.5 rounded-md"><i class="fa-solid fa-lock text-[8px]"></i> BESTILT & LÅST</span>' : ''}
                             </span>
-                            <span class="text-xs font-semibold text-slate-500">${i === 0 ? 'Startsted' : '+' + distance.nm.toFixed(1) + ' NM'}</span>
+                            <span class="text-xs font-semibold text-slate-500">${i === 0 ? 'Startsted' : '+' + distance.nm.toFixed(1) + ' NM (~' + formatDuration(hours) + ')'}</span>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs pt-1">
                             <div>
