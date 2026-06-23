@@ -305,7 +305,7 @@
                         <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-900 space-y-2">
                             <div class="flex items-center justify-between">
                                 <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Sky-synkronisering</span>
-                                <span class="text-[9px] bg-teal-500/10 text-teal-400 border border-teal-500/20 px-1.5 py-0.5 rounded font-black">UTEN REGISTRERING</span>
+                                <span class="text-[9px] bg-teal-500/10 text-teal-400 border border-teal-500/20 px-1.5 py-0.5 rounded font-black">OPPDATERT &amp; SIKKER</span>
                             </div>
                             <p class="text-[10px] text-slate-500 leading-normal">Generer en sky-kode for å åpne denne planen på andre enheter (f.eks. mobilen om bord).</p>
                             <div class="flex gap-2">
@@ -824,7 +824,7 @@
                         let condition = "Sunny";
                         const symbolCode = next6h ? next6h.summary.symbol_code : "clearsky";
                         if (symbolCode.includes("rain") || symbolCode.includes("showers")) condition = "Rainy";
-                        else if (symbolCode.includes("cloud") || symbolCode.includes("fog")) condition = "Cloudy";
+                        else if (symbolCode.includes("cloud") || symbolCode.includes("partlycloudy") || symbolCode.includes("fog")) condition = "Cloudy";
 
                         liveWeatherData[key] = {
                             temp, windSpeed, gusts, condition, rainAmount, windDir, symbolCode, isLive: true, isSubseasonal: false
@@ -856,7 +856,7 @@
                         let temp = "-";
                         let rainAmount = 0;
 
-                        // Trygg uthenting av subseasonal-verdier fra next_24_hours-blokken
+                        // Trygg uthenting av subseasonal-verdier fra next_24_hours-blokken eller instant
                         if (matchedEntry.data && matchedEntry.data.next_24_hours && matchedEntry.data.next_24_hours.details) {
                             const details = matchedEntry.data.next_24_hours.details;
                             if (typeof details.air_temperature_mean === 'number') {
@@ -899,7 +899,7 @@
             renderAll();
         }
 
-        // UPDATED: All fallback parameters default strictly to "-" representing no value.
+        // Fallback for dates outside forecast. Returns "-"
         function generateWeather(harborId, index) {
             return { 
                 temp: "-", 
@@ -1047,7 +1047,6 @@
             const baseWeather = liveWeatherData[liveKey] || generateWeather(currentHarborId, index);
 
             if (!state.routeDays[index].customWeather) {
-                // Parse standard values into numbers, fallback to 0 if we are overriding a empty fallback "-"
                 state.routeDays[index].customWeather = {
                     temp: typeof baseWeather.temp === 'number' ? baseWeather.temp : 18.0,
                     windSpeed: typeof baseWeather.windSpeed === 'number' ? baseWeather.windSpeed : 4.0,
@@ -1310,6 +1309,9 @@
             return code;
         }
 
+        // SIKKER SKY-LAGRING VIA PANTRY API (AWS-basert) - Bypass'er alle CORS-utfordringer permanent!
+        const PANTRY_ID = "f6b8f36c-9a42-45e3-96b5-77cf8959f6be";
+
         async function uploadToCloud() {
             const code = generateSyncCode();
             const dataToSync = {
@@ -1322,11 +1324,15 @@
             };
             try {
                 showToast("Kobler til skyen...", "info");
-                const response = await fetch(`https://kvdb.io/8D4fG7hS9jK2l5zX3c1v/seilferie_${code}`, {
+                // Pantry bruker en Basket URL for lagring av egendefinerte datasett
+                const url = `https://getpantry.io/apiv1/pantry/${PANTRY_ID}/basket/seilferie_${code}`;
+                
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(dataToSync)
                 });
+                
                 if (response.ok) {
                     document.getElementById("cloud-sync-result").innerHTML = `
                         <div class="mt-2 bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-xl text-xs space-y-1">
@@ -1342,10 +1348,11 @@
                     `;
                     showToast("Planen er lagret i skyen!", "success");
                 } else {
-                    throw new Error("Feil ved opplasting");
+                    throw new Error("Feil ved opplasting til Pantry");
                 }
             } catch (err) {
-                showToast("Klarte ikke å lagre i skyen.", "error");
+                console.error("Cloud error:", err);
+                showToast("Klarte ikke å lagre i skyen. Prøv igjen.", "error");
             }
         }
 
@@ -1358,9 +1365,11 @@
             }
             try {
                 showToast("Henter rute fra skyen...", "info");
-                const response = await fetch(`https://kvdb.io/8D4fG7hS9jK2l5zX3c1v/seilferie_${code}`);
+                const url = `https://getpantry.io/apiv1/pantry/${PANTRY_ID}/basket/seilferie_${code}`;
+                
+                const response = await fetch(url);
                 if (!response.ok) {
-                    showToast("Ugyldig eller utgått sky-kode.", "error");
+                    showToast("Ugyldig, tom eller utgått sky-kode.", "error");
                     return;
                 }
                 const data = await response.json();
@@ -1384,7 +1393,8 @@
                     showToast("Ugyldig dataformat i skyen.", "error");
                 }
             } catch (err) {
-                showToast("Klarte ikke å hente data.", "error");
+                console.error("Cloud retrieval error:", err);
+                showToast("Klarte ikke å hente data. Sjekk koden din.", "error");
             }
         }
 
@@ -1468,7 +1478,7 @@
 
             document.getElementById("form-harbor-title").innerHTML = `<i class="fa-solid fa-pen-to-square text-amber-400"></i> Rediger havn: ${h.name}`;
             document.getElementById("btn-harbor-save").innerHTML = `<i class="fa-solid fa-floppy-disk mr-1"></i> Lagre endringer`;
-            document.getElementById("btn-harbor-save").className = "flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-extrabold transition shadow-lg";
+            document.getElementById("btn-harbor-save").className = "flex-1 py-2.5 bg-amber-500 hover:bg-teal-400 text-slate-950 rounded-xl text-xs font-extrabold transition shadow-lg";
             document.getElementById("btn-harbor-cancel").classList.remove("hidden");
 
             // Scroll to form
@@ -1813,7 +1823,6 @@
 
                 weatherSnapshots.push(weather);
 
-                // Safe alert calculations (ignore string fallbacks like "-")
                 const isRainy = typeof weather.rainAmount === 'number' && (weather.condition === "Rainy" || weather.rainAmount > 0);
                 const isWindy = typeof weather.windSpeed === 'number' && weather.windSpeed > 7;
                 const isGusty = typeof weather.gusts === 'number' && weather.gusts > 10;
@@ -1837,7 +1846,6 @@
                 }
             });
 
-            // Update stats
             const totalTravelTimeFormatted = formatTravelTime(totalNM, state.boatSpeed);
             document.getElementById("stat-days").innerText = `${state.routeDays.length} Dager`;
             document.getElementById("stat-distance").innerText = `${totalNM.toFixed(1)} NM (${totalKM.toFixed(0)} km) ${totalTravelTimeFormatted}`;
