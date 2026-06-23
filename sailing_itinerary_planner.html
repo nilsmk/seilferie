@@ -840,18 +840,55 @@
                     const data = await response.json();
                     const timeseries = data.properties.timeseries;
 
-                    const targetDateStr = plannedDate.toISOString().split('T')[0];
-                    let matchedEntry = timeseries.find(entry => entry.time.startsWith(targetDateStr));
+                    // Feilsikker dato-matching som tar hensyn til tidssoneforskyvning
+                    const targetYear = plannedDate.getFullYear();
+                    const targetMonth = plannedDate.getMonth();
+                    const targetDay = plannedDate.getDate();
+
+                    let matchedEntry = timeseries.find(entry => {
+                        const entryDate = new Date(entry.time);
+                        return entryDate.getFullYear() === targetYear &&
+                               entryDate.getMonth() === targetMonth &&
+                               entryDate.getDate() === targetDay;
+                    });
 
                     if (matchedEntry) {
-                        const temp = matchedEntry.data.instant.details.air_temperature_mean;
-                        const rainAmount = matchedEntry.data.instant.details.precipitation_amount || 0;
+                        let temp = "-";
+                        let rainAmount = 0;
+
+                        // Trygg uthenting av subseasonal-verdier fra next_24_hours-blokken
+                        if (matchedEntry.data && matchedEntry.data.next_24_hours && matchedEntry.data.next_24_hours.details) {
+                            const details = matchedEntry.data.next_24_hours.details;
+                            if (typeof details.air_temperature_mean === 'number') {
+                                temp = details.air_temperature_mean;
+                            } else if (typeof details.air_temperature_max === 'number') {
+                                temp = details.air_temperature_max;
+                            }
+                            if (typeof details.precipitation_amount === 'number') {
+                                rainAmount = details.precipitation_amount;
+                            }
+                        } else if (matchedEntry.data && matchedEntry.data.instant && matchedEntry.data.instant.details) {
+                            const details = matchedEntry.data.instant.details;
+                            temp = details.air_temperature_mean ?? details.air_temperature ?? "-";
+                            rainAmount = details.precipitation_amount ?? 0;
+                        }
+
                         const condition = rainAmount > 2 ? "Rainy" : "Sunny";
 
                         liveWeatherData[key] = {
-                            temp, windSpeed: "-", gusts: "-", condition, rainAmount, windDir: "-", symbolCode: condition === "Rainy" ? "rain" : "clearsky", isLive: true, isSubseasonal: true
+                            temp, 
+                            windSpeed: "-", 
+                            gusts: "-", 
+                            condition, 
+                            rainAmount, 
+                            windDir: "-", 
+                            symbolCode: condition === "Rainy" ? "rain" : "clearsky", 
+                            isLive: true, 
+                            isSubseasonal: true
                         };
                         fetchStatus[key] = "success";
+                    } else {
+                        fetchStatus[key] = "no_data";
                     }
                 }
             } catch (err) {
