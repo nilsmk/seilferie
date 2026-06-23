@@ -480,7 +480,7 @@
                 <div class="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-lg space-y-4">
                     <h3 class="font-bold text-sm text-white flex items-center gap-2">
                         <i class="fa-solid fa-list-ul text-teal-400"></i>
-                        Søkbart Havnearkiv (${HARBORS_DATABASE.length} standard + dine egne)
+                        Søkbart Havnearkiv
                     </h3>
                     
                     <div class="overflow-x-auto max-h-96">
@@ -849,7 +849,7 @@
                         const condition = rainAmount > 2 ? "Rainy" : "Sunny";
 
                         liveWeatherData[key] = {
-                            temp, windSpeed: 0, gusts: 0, condition, rainAmount, windDir: "-", symbolCode: condition === "Rainy" ? "rain" : "clearsky", isLive: true, isSubseasonal: true
+                            temp, windSpeed: "-", gusts: "-", condition, rainAmount, windDir: "-", symbolCode: condition === "Rainy" ? "rain" : "clearsky", isLive: true, isSubseasonal: true
                         };
                         fetchStatus[key] = "success";
                     }
@@ -862,28 +862,22 @@
             renderAll();
         }
 
+        // UPDATED: All fallback parameters default strictly to "-" representing no value.
         function generateWeather(harborId, index) {
-            const cleanId = String(harborId || "saetre");
-            const seed = (cleanId.charCodeAt(0) + index * 13) % 100;
-            const windSpeed = parseFloat((3 + (seed % 7) + (seed % 3) * 0.9).toFixed(1));
-            const gusts = parseFloat((windSpeed * (1.2 + (seed % 4) * 0.15)).toFixed(1));
-            const temp = 17 + (seed % 8);
-            
-            let condition = "Sunny";
-            if (seed % 4 === 1) condition = "Cloudy";
-            else if (seed % 4 === 2) condition = "Rainy";
-            else if (seed % 4 === 3) condition = "Windy";
-
-            const rainAmount = condition === "Rainy" ? parseFloat((1.5 + (seed % 5) * 1.8).toFixed(1)) : 0;
-            const windDir = ["N", "NØ", "Ø", "SØ", "S", "SV", "V", "NV"][seed % 8];
-
-            return { temp, windSpeed, gusts, condition, rainAmount, windDir, isLive: false };
+            return { 
+                temp: "-", 
+                windSpeed: "-", 
+                gusts: "-", 
+                condition: "-", 
+                rainAmount: "-", 
+                windDir: "-", 
+                isLive: false 
+            };
         }
 
         function getWindArrowHtml(directionStr) {
             if (!directionStr || directionStr === "-") return "";
             
-            // Map compass direction to degree rotation (meteorological approach: arrow points to where the wind blows)
             const angles = {
                 "N": 180,   // Wind from North blows towards South (pointing down)
                 "NØ": 225,  // Wind from North-East blows towards South-West
@@ -1016,7 +1010,16 @@
             const baseWeather = liveWeatherData[liveKey] || generateWeather(currentHarborId, index);
 
             if (!state.routeDays[index].customWeather) {
-                state.routeDays[index].customWeather = { ...baseWeather };
+                // Parse standard values into numbers, fallback to 0 if we are overriding a empty fallback "-"
+                state.routeDays[index].customWeather = {
+                    temp: typeof baseWeather.temp === 'number' ? baseWeather.temp : 18.0,
+                    windSpeed: typeof baseWeather.windSpeed === 'number' ? baseWeather.windSpeed : 4.0,
+                    gusts: typeof baseWeather.gusts === 'number' ? baseWeather.gusts : 6.0,
+                    condition: baseWeather.condition !== "-" ? baseWeather.condition : "Sunny",
+                    rainAmount: typeof baseWeather.rainAmount === 'number' ? baseWeather.rainAmount : 0.0,
+                    windDir: baseWeather.windDir !== "-" ? baseWeather.windDir : "S",
+                    isLive: false
+                };
             }
             state.routeDays[index].customWeather[key] = parseFloat(value);
             persistState();
@@ -1481,7 +1484,7 @@
                     zoomControl: true,
                 });
                 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                    attribution: '&copy; OpenStreetMap &copy; CARTO'
+                    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
                 }).addTo(map);
             } catch (e) {
                 console.error("Map init failed", e);
@@ -1497,13 +1500,12 @@
                     zoomControl: true,
                 });
                 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                    attribution: '&copy; OpenStreetMap &copy; CARTO'
+                    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
                 }).addTo(dbMap);
 
                 // Click on map to populate forms
                 dbMap.on('click', function(e) {
                     const editId = document.getElementById("edit-harbor-id").value;
-                    // Only fill form if NOT in active dragging/editing mode
                     if (!editId) {
                         document.getElementById("form-harbor-lat").value = e.latlng.lat.toFixed(4);
                         document.getElementById("form-harbor-lng").value = e.latlng.lng.toFixed(4);
@@ -1607,7 +1609,6 @@
                 const isPlanned = state.routeDays.some(d => d.harborId === h.id);
 
                 if (isUnderEdit) {
-                    // Create a special draggable marker in yellow for the harbor under modification
                     const yellowAnchorIcon = L.divIcon({
                         html: `<div class="w-10 h-10 bg-amber-500 text-slate-950 rounded-full flex items-center justify-center border-2 border-white shadow-2xl animate-bounce cursor-pointer"><i class="fa-solid fa-anchor text-sm"></i></div>`,
                         className: '',
@@ -1622,7 +1623,6 @@
 
                     dbDragMarker.bindTooltip(`<div class="bg-slate-950 text-white border-none p-1 text-[11px] font-bold rounded">Dra meg for å flytte "${h.name}"!</div>`, { permanent: true, direction: "top" });
 
-                    // Handle dragging event
                     dbDragMarker.on('drag', function(e) {
                         const position = dbDragMarker.getLatLng();
                         document.getElementById("form-harbor-lat").value = position.lat.toFixed(4);
@@ -1655,7 +1655,6 @@
                 }
             });
 
-            // Center view on editing harbor if present
             if (editId) {
                 const h = state.harbors.find(har => har.id === editId);
                 if (h) dbMap.setView([h.lat, h.lng], 10);
@@ -1750,7 +1749,7 @@
         }
 
         function renderAll() {
-            // Synchronize basic fields
+            // Synchronize speed field
             document.getElementById("input-boat-speed").value = state.boatSpeed;
 
             let totalNM = 0;
@@ -1777,8 +1776,13 @@
 
                 weatherSnapshots.push(weather);
 
-                if (weather.condition === "Rainy" || weather.rainAmount > 0) rainAlerts++;
-                if (weather.windSpeed > 7 || weather.gusts > 10) windAlerts++;
+                // Safe alert calculations (ignore string fallbacks like "-")
+                const isRainy = typeof weather.rainAmount === 'number' && (weather.condition === "Rainy" || weather.rainAmount > 0);
+                const isWindy = typeof weather.windSpeed === 'number' && weather.windSpeed > 7;
+                const isGusty = typeof weather.gusts === 'number' && weather.gusts > 10;
+
+                if (isRainy) rainAlerts++;
+                if (isWindy || isGusty) windAlerts++;
 
                 if (i === 0) {
                     calculatedDistances.push({ nm: 0, km: 0 });
@@ -1814,9 +1818,9 @@
                 const weather = weatherSnapshots[index];
                 const distance = calculatedDistances[index];
 
-                const isRainy = weather.condition === "Rainy" || weather.rainAmount > 0;
-                const isWindy = weather.windSpeed > 7;
-                const isGusty = weather.gusts > 10;
+                const isRainy = typeof weather.rainAmount === 'number' && (weather.condition === "Rainy" || weather.rainAmount > 0);
+                const isWindy = typeof weather.windSpeed === 'number' && weather.windSpeed > 7;
+                const isGusty = typeof weather.gusts === 'number' && weather.gusts > 10;
                 const hasWarnings = isRainy || isWindy || isGusty;
                 const isBooked = !!day.booked;
 
@@ -1839,7 +1843,7 @@
                         weatherBadgeHtml = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-black"><i class="fa-solid fa-satellite"></i> 🟢 Live MET-varsel</span>`;
                     }
                 } else {
-                    weatherBadgeHtml = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-semibold"><i class="fa-solid fa-triangle-exclamation"></i> ⏳ Simulert (Utenfor live-periode)</span>`;
+                    weatherBadgeHtml = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-semibold"><i class="fa-solid fa-triangle-exclamation"></i> ⏳ Simulert (Ingen live-data)</span>`;
                 }
 
                 const legTravelTimeFormatted = index === 0 ? '' : ` (~${formatTravelTime(distance.nm, state.boatSpeed)})`;
@@ -1912,7 +1916,7 @@
                                 </div>
                             </div>
 
-                            <!-- WEATHER DISPLAY -->
+                            <!-- WEATHER DISPLAY (WITH SECURE Fallback Check) -->
                             <div id="weather-box-${index}" class="bg-slate-950 rounded-xl p-4 border border-slate-800 space-y-3">
                                 <div class="flex items-center justify-between border-b border-slate-900 pb-2">
                                     <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
@@ -1930,23 +1934,27 @@
                                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                                     <div class="bg-slate-900/60 p-2 rounded-lg">
                                         <span class="block text-[9px] text-slate-500 font-bold uppercase">Temperatur</span>
-                                        <span class="text-sm font-extrabold text-white">${weather.temp.toFixed(1)}°C</span>
+                                        <span class="text-sm font-extrabold text-white">
+                                            ${typeof weather.temp === 'number' ? weather.temp.toFixed(1) + '°C' : '-'}
+                                        </span>
                                     </div>
                                     <div class="bg-slate-900/60 p-2 rounded-lg">
                                         <span class="block text-[9px] text-slate-500 font-bold uppercase">Middelvind</span>
-                                        <span class="text-sm font-extrabold block ${weather.windSpeed > 7 ? 'text-amber-400 animate-pulse' : 'text-white'}">
-                                            ${weather.windSpeed > 0 ? weather.windSpeed + ' m/s ' + getWindArrowHtml(weather.windDir) : '-'}
+                                        <span class="text-sm font-extrabold block ${typeof weather.windSpeed === 'number' && weather.windSpeed > 7 ? 'text-amber-400 animate-pulse' : 'text-white'}">
+                                            ${typeof weather.windSpeed === 'number' ? weather.windSpeed + ' m/s ' + getWindArrowHtml(weather.windDir) : '-'}
                                         </span>
                                     </div>
                                     <div class="bg-slate-900/60 p-2 rounded-lg">
                                         <span class="block text-[9px] text-slate-500 font-bold uppercase">Vindkast</span>
-                                        <span class="text-sm font-extrabold block ${weather.gusts > 10 ? 'text-rose-400 animate-pulse' : 'text-white'}">
-                                            ${weather.gusts > 0 ? weather.gusts + ' m/s' : '-'}
+                                        <span class="text-sm font-extrabold block ${typeof weather.gusts === 'number' && weather.gusts > 10 ? 'text-rose-400 animate-pulse' : 'text-white'}">
+                                            ${typeof weather.gusts === 'number' ? weather.gusts + ' m/s' : '-'}
                                         </span>
                                     </div>
                                     <div class="bg-slate-900/60 p-2 rounded-lg">
                                         <span class="block text-[9px] text-slate-500 font-bold uppercase">Nedbør</span>
-                                        <span class="text-sm font-extrabold block ${weather.rainAmount > 0 ? 'text-sky-400' : 'text-slate-400'}">${weather.rainAmount.toFixed(1)} mm</span>
+                                        <span class="text-sm font-extrabold block ${typeof weather.rainAmount === 'number' && weather.rainAmount > 0 ? 'text-sky-400' : 'text-slate-400'}">
+                                            ${typeof weather.rainAmount === 'number' ? weather.rainAmount.toFixed(1) + ' mm' : '-'}
+                                        </span>
                                     </div>
                                 </div>
 
@@ -1969,16 +1977,16 @@
                                         </summary>
                                         <div class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-900 p-3 rounded-lg">
                                             <div>
-                                                <label class="block text-[10px] text-slate-400 mb-1">Middelvind: ${weather.windSpeed} m/s</label>
-                                                <input type="range" min="0" max="15" step="0.5" value="${weather.windSpeed}" oninput="updateWeatherSlider(${index}, 'windSpeed', this.value)" class="w-full accent-teal-500"/>
+                                                <label class="block text-[10px] text-slate-400 mb-1">Middelvind: ${typeof weather.windSpeed === 'number' ? weather.windSpeed + ' m/s' : '-'}</label>
+                                                <input type="range" min="0" max="15" step="0.5" value="${typeof weather.windSpeed === 'number' ? weather.windSpeed : 0}" oninput="updateWeatherSlider(${index}, 'windSpeed', this.value)" class="w-full accent-teal-500"/>
                                             </div>
                                             <div>
-                                                <label class="block text-[10px] text-slate-400 mb-1">Vindkast: ${weather.gusts} m/s</label>
-                                                <input type="range" min="0" max="25" step="0.5" value="${weather.gusts}" oninput="updateWeatherSlider(${index}, 'gusts', this.value)" class="w-full accent-rose-500"/>
+                                                <label class="block text-[10px] text-slate-400 mb-1">Vindkast: ${typeof weather.gusts === 'number' ? weather.gusts + ' m/s' : '-'}</label>
+                                                <input type="range" min="0" max="25" step="0.5" value="${typeof weather.gusts === 'number' ? weather.gusts : 0}" oninput="updateWeatherSlider(${index}, 'gusts', this.value)" class="w-full accent-rose-500"/>
                                             </div>
                                             <div>
-                                                <label class="block text-[10px] text-slate-400 mb-1">Regn: ${weather.rainAmount} mm</label>
-                                                <input type="range" min="0" max="12" step="0.2" value="${weather.rainAmount}" oninput="updateWeatherSlider(${index}, 'rainAmount', this.value)" class="w-full accent-sky-500"/>
+                                                <label class="block text-[10px] text-slate-400 mb-1">Regn: ${typeof weather.rainAmount === 'number' ? weather.rainAmount + ' mm' : '-'}</label>
+                                                <input type="range" min="0" max="12" step="0.2" value="${typeof weather.rainAmount === 'number' ? weather.rainAmount : 0}" oninput="updateWeatherSlider(${index}, 'rainAmount', this.value)" class="w-full accent-sky-500"/>
                                             </div>
                                         </div>
                                     </details>
@@ -2067,9 +2075,9 @@
                 const weather = weatherSnapshots[i];
                 const harbor = state.harbors.find(h => h.id === day.harborId) || state.harbors[0];
 
-                const isRainy = weather.condition === "Rainy" || weather.rainAmount > 0;
-                const isWindy = weather.windSpeed > 7;
-                const isGusty = weather.gusts > 10;
+                const isRainy = typeof weather.rainAmount === 'number' && (weather.condition === "Rainy" || weather.rainAmount > 0);
+                const isWindy = typeof weather.windSpeed === 'number' && weather.windSpeed > 7;
+                const isGusty = typeof weather.gusts === 'number' && weather.gusts > 10;
 
                 if (isRainy || isWindy || isGusty) {
                     summaryWarningsCount++;
@@ -2125,7 +2133,10 @@
                             <div>
                                 <span class="block text-[10px] text-slate-400 font-bold uppercase">Værforhold</span>
                                 <span class="font-medium text-slate-700 block">
-                                    ${weather.temp.toFixed(1)}°C, vind ${weather.windSpeed > 0 ? weather.windSpeed + ' m/s ' + weather.windDir : '-'}, kast ${weather.gusts > 0 ? weather.gusts + ' m/s' : '-'}. ${weather.isLive ? '(Live MET)' : '(Simulert)'}
+                                    Temp: ${typeof weather.temp === 'number' ? weather.temp.toFixed(1) + '°C' : '-'}, 
+                                    Vind: ${typeof weather.windSpeed === 'number' ? weather.windSpeed + ' m/s ' + weather.windDir : '-'}, 
+                                    Kast: ${typeof weather.gusts === 'number' ? weather.gusts + ' m/s' : '-'}. 
+                                    ${weather.isLive ? (weather.isSubseasonal ? '(MET 21-dagers)' : '(Live MET)') : '(Intet varsel)'}
                                 </span>
                             </div>
                         </div>
