@@ -302,7 +302,7 @@
                             <input type="file" id="file-import-input" onchange="importTotalBackup(event)" class="hidden" accept=".json" />
                         </div>
                         <p class="text-[10px] text-slate-500 leading-normal italic text-center">
-                            Overfør filen til mobilen eller nettbrettet om bord for 100 % driftssikker visning uten nett!
+                            Overfør filen to mobilen eller nettbrettet om bord for 100 % driftssikker visning uten nett!
                         </p>
                     </div>
 
@@ -867,6 +867,7 @@
             renderAll();
         }
 
+        // UPDATED: All fallback parameters default strictly to "-" representing no value.
         function generateWeather(harborId, index) {
             return { 
                 temp: "-", 
@@ -883,14 +884,14 @@
             if (!directionStr || directionStr === "-") return "";
             
             const angles = {
-                "N": 180,   
-                "NØ": 225,  
-                "Ø": 270,   
-                "SØ": 315,  
-                "S": 0,     
-                "SV": 45,   
-                "V": 90,    
-                "NV": 135   
+                "N": 180,   // Wind from North blows towards South (pointing down)
+                "NØ": 225,  // Wind from North-East blows towards South-West
+                "Ø": 270,   // Wind from East blows towards West
+                "SØ": 315,  // Wind from South-East blows towards North-West
+                "S": 0,     // Wind from South blows towards North (pointing up)
+                "SV": 45,   // Wind from South-West blows towards North-East
+                "V": 90,    // Wind from West blows towards East
+                "NV": 135   // Wind from North-West blows towards South-East
             };
 
             const rotation = angles[directionStr] !== undefined ? angles[directionStr] : 0;
@@ -902,22 +903,46 @@
         }
 
         function loadSavedState() {
+            // First load dates as a safe string (resilient to unquoted strings in storage)
             try {
                 const savedDate = localStorage.getItem("seil_startDate");
-                if (savedDate) state.startDate = JSON.parse(savedDate);
+                if (savedDate) {
+                    if (savedDate.startsWith('"') && savedDate.endsWith('"')) {
+                        state.startDate = JSON.parse(savedDate);
+                    } else {
+                        state.startDate = savedDate;
+                    }
+                }
+            } catch (e) { console.error(e); }
 
+            try {
                 const savedSpeed = localStorage.getItem("seil_boatSpeed");
                 if (savedSpeed) state.boatSpeed = parseFloat(savedSpeed);
+            } catch (e) { console.error(e); }
 
+            try {
                 const savedDinners = localStorage.getItem("seil_dinners");
-                if (savedDinners) state.dinners = JSON.parse(savedDinners);
+                if (savedDinners) {
+                    const parsed = JSON.parse(savedDinners);
+                    if (Array.isArray(parsed) && parsed.length > 0) state.dinners = parsed;
+                }
+            } catch (e) { console.error(e); }
 
+            try {
                 const savedHarbors = localStorage.getItem("seil_harbors");
-                if (savedHarbors) state.harbors = JSON.parse(savedHarbors);
+                if (savedHarbors) {
+                    const parsed = JSON.parse(savedHarbors);
+                    if (Array.isArray(parsed) && parsed.length > 0) state.harbors = parsed;
+                }
+            } catch (e) { console.error(e); }
 
+            try {
                 const savedRoute = localStorage.getItem("seil_routeDays");
-                if (savedRoute) state.routeDays = JSON.parse(savedRoute);
-            } catch (e) {}
+                if (savedRoute) {
+                    const parsed = JSON.parse(savedRoute);
+                    if (Array.isArray(parsed) && parsed.length > 0) state.routeDays = parsed;
+                }
+            } catch (e) { console.error(e); }
         }
 
         function persistState() {
@@ -931,11 +956,13 @@
         function switchTab(tabId) {
             state.selectedTab = tabId;
             
+            // Toggle visibility of standard content tabs
             document.getElementById("tab-content-planner").classList.add("hidden");
             document.getElementById("tab-content-dinners").classList.add("hidden");
             document.getElementById("tab-content-database").classList.add("hidden");
             document.getElementById("tab-content-summary").classList.add("hidden");
 
+            // Toggle active styles on buttons
             document.querySelectorAll("nav button").forEach(btn => {
                 btn.className = "px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition duration-200 flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-900";
             });
@@ -950,6 +977,7 @@
                 activeTabContent.classList.remove("hidden");
             }
 
+            // Invalidate Map viewports safely on visible render
             if (tabId === "planner") {
                 setTimeout(() => {
                     if (map) map.invalidateSize();
@@ -1011,6 +1039,7 @@
             const baseWeather = liveWeatherData[liveKey] || generateWeather(currentHarborId, index);
 
             if (!state.routeDays[index].customWeather) {
+                // Parse standard values into numbers, fallback to 0 if we are overriding a empty fallback "-"
                 state.routeDays[index].customWeather = {
                     temp: typeof baseWeather.temp === 'number' ? baseWeather.temp : 18.0,
                     windSpeed: typeof baseWeather.windSpeed === 'number' ? baseWeather.windSpeed : 4.0,
@@ -1288,6 +1317,7 @@
             const webcamUrl = webcamUrlEl.value.trim();
 
             if (editIdEl.value) {
+                // REDIGERING AV EKSISTERENDE HAVN
                 const targetId = editIdEl.value;
                 const idx = state.harbors.findIndex(h => h.id === targetId);
                 if (idx !== -1) {
@@ -1298,6 +1328,7 @@
                 }
                 cancelEditHarbor();
             } else {
+                // OPPRETTE NY HAVN
                 const id = "custom_" + Date.now();
                 state.harbors.push({
                     id, name, lat, lng, guideName, guideUrl, webcamUrl, yrUrl
@@ -1305,6 +1336,7 @@
                 showToast(`Ny havn "${name}" ble lagret!`, "success");
             }
 
+            // Reset skjemaet
             nameEl.value = "";
             latEl.value = "";
             lngEl.value = "";
@@ -1334,7 +1366,10 @@
             document.getElementById("btn-harbor-save").className = "flex-1 py-2.5 bg-amber-500 hover:bg-teal-400 text-slate-950 rounded-xl text-xs font-extrabold transition shadow-lg";
             document.getElementById("btn-harbor-cancel").classList.remove("hidden");
 
+            // Scroll to form
             document.getElementById("form-harbor-title").scrollIntoView({ behavior: 'smooth' });
+
+            // Redraw database map to show yellow draggable pin
             drawDatabaseMapRoutes();
         }
 
@@ -1356,6 +1391,7 @@
         }
 
         function deleteHarbor(id) {
+            // Sjekk om havnen brukes i ruteplanen
             const isUsed = state.routeDays.some(d => d.harborId === id);
             if (isUsed) {
                 showToast("Kan ikke slette en havn som er i bruk i ruteplanen din.", "error");
@@ -1612,6 +1648,7 @@
         }
 
         function renderAll() {
+            // Sørg for at fart-feltet stemmer med staten
             document.getElementById("input-boat-speed").value = state.boatSpeed;
 
             let totalNM = 0;
@@ -1776,7 +1813,7 @@
                                 </div>
                             </div>
 
-                            <!-- WEATHER DISPLAY -->
+                            <!-- WEATHER DISPLAY (WITH SECURE Fallback Check) -->
                             <div id="weather-box-${index}" class="bg-slate-950 rounded-xl p-4 border border-slate-800 space-y-3">
                                 <div class="flex items-center justify-between border-b border-slate-900 pb-2">
                                     <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
@@ -2010,7 +2047,7 @@
                 printTimeline.insertAdjacentHTML('beforeend', dayHtml);
             });
 
-            // Update maps safely based on container visibility to avoid grey rendering blocks
+            // Update maps
             drawMapRoute();
             if (dbMap && state.selectedTab === "database") {
                 drawDatabaseMapRoutes();
