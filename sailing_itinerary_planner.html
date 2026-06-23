@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
     <!-- FLATPICKR DATEPICKER STYLES -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link class="no-print" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 
     <script>
         tailwind.config = {
@@ -305,7 +305,7 @@
                         <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-900 space-y-2">
                             <div class="flex items-center justify-between">
                                 <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Sky-synkronisering</span>
-                                <span class="text-[9px] bg-teal-500/10 text-teal-400 border border-teal-500/20 px-1.5 py-0.5 rounded font-black">OPPDATERT &amp; SIKKER</span>
+                                <span class="text-[9px] bg-teal-500/10 text-teal-400 border border-teal-500/20 px-1.5 py-0.5 rounded font-black">NY &amp; DRIFTSSIKKER</span>
                             </div>
                             <p class="text-[10px] text-slate-500 leading-normal">Generer en sky-kode for å åpne denne planen på andre enheter (f.eks. mobilen om bord).</p>
                             <div class="flex gap-2">
@@ -590,8 +590,46 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/no.js"></script>
 
-    <!-- VANILLA JS ENGINE -->
-    <script>
+    <!-- FIREBASE & CORE ENGINE (ES MODULE) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Configuration (Automatically injected by the Workspace Sandbox)
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "dummy-key-for-local-preview",
+            authDomain: "dummy.firebaseapp.com",
+            projectId: "dummy-seilferie",
+            storageBucket: "dummy.appspot.com",
+            messagingSenderId: "123456",
+            appId: "1:123:web:abc"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'seilferie-2026';
+
+        let firebaseUser = null;
+
+        // Firebase rule 3: Always authenticate BEFORE doing queries
+        const initAuth = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    const credential = await signInWithCustomToken(auth, __initial_auth_token);
+                    firebaseUser = credential.user;
+                } else {
+                    const credential = await signInAnonymously(auth);
+                    firebaseUser = credential.user;
+                }
+            } catch (e) {
+                console.error("Firebase Auth failed:", e);
+            }
+        };
+
+        const authPromise = initAuth();
+
         const SEED_HARBORS = [
             { id: "saetre", name: "Sætre", lat: 59.6806, lng: 10.5186, guideName: "Sætre Havn", guideUrl: "https://harbourguide.com/no/search?q=Sætre", webcamUrl: "", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-2746404/Norge/Viken/Asker/S%C3%A6tre" },
             { id: "horten", name: "Horten", lat: 59.4128, lng: 10.4900, guideName: "Sykehusbrygga", guideUrl: "https://harbourguide.com/no/search?q=Sykehusbrygga", webcamUrl: "https://nettkamera.cid.no/hortenIndreHavn/max.jpg", yrUrl: "https://www.yr.no/nb/v%C3%A6rvarsel/daglig-tabell/1-2826417/Norge/Vestfold/Horten/Horten" },
@@ -1309,9 +1347,7 @@
             return code;
         }
 
-        // SIKKER SKY-LAGRING VIA PANTRY API (AWS-basert) - Bypass'er alle CORS-utfordringer permanent!
-        const PANTRY_ID = "f6b8f36c-9a42-45e3-96b5-77cf8959f6be";
-
+        // --- SKYLAGRING VIA FIRESTORE (Robust og sikret mot CORS-begrensninger) ---
         async function uploadToCloud() {
             const code = generateSyncCode();
             const dataToSync = {
@@ -1320,39 +1356,38 @@
                 dinners: state.dinners,
                 harbors: state.harbors,
                 routeDays: state.routeDays,
-                savedRoutes: getSavedRoutes()
+                savedRoutes: getSavedRoutes(),
+                createdAt: new Date().toISOString()
             };
             try {
                 showToast("Kobler til skyen...", "info");
-                // Pantry bruker en Basket URL for lagring av egendefinerte datasett
-                const url = `https://getpantry.io/apiv1/pantry/${PANTRY_ID}/basket/seilferie_${code}`;
+                await authPromise;
                 
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(dataToSync)
-                });
-                
-                if (response.ok) {
-                    document.getElementById("cloud-sync-result").innerHTML = `
-                        <div class="mt-2 bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-xl text-xs space-y-1">
-                            <p class="font-bold text-emerald-300">Sky-opplasting vellykket!</p>
-                            <p class="text-slate-300">Bruk denne koden på andre enheter:</p>
-                            <div class="flex items-center gap-2 mt-1">
-                                <span class="bg-slate-950 px-2.5 py-1 rounded text-base font-black text-teal-400 tracking-widest">${code}</span>
-                                <button onclick="copyToClipboard('${code}')" class="p-1 text-slate-400 hover:text-white" title="Kopier kode">
-                                    <i class="fa-solid fa-copy"></i>
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                    showToast("Planen er lagret i skyen!", "success");
-                } else {
-                    throw new Error("Feil ved opplasting til Pantry");
+                if (!auth.currentUser) {
+                    showToast("Kunne ikke autentisere med skytjenesten.", "error");
+                    return;
                 }
+
+                // Strict path rule 1: /artifacts/{appId}/public/data/{collectionName}/{docId}
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'routes', code);
+                await setDoc(docRef, dataToSync);
+
+                document.getElementById("cloud-sync-result").innerHTML = `
+                    <div class="mt-2 bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-xl text-xs space-y-1 animate-pulse">
+                        <p class="font-bold text-emerald-300">Sky-opplasting vellykket!</p>
+                        <p class="text-slate-300">Bruk denne koden på andre enheter:</p>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="bg-slate-950 px-2.5 py-1 rounded text-base font-black text-teal-400 tracking-widest">${code}</span>
+                            <button onclick="copyToClipboard('${code}')" class="p-1 text-slate-400 hover:text-white" title="Kopier kode">
+                                <i class="fa-solid fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                showToast("Planen er trygt lagret i skyen!", "success");
             } catch (err) {
-                console.error("Cloud error:", err);
-                showToast("Klarte ikke å lagre i skyen. Prøv igjen.", "error");
+                console.error("Cloud storage upload failed:", err);
+                showToast("Kunne ikke lagre til skyen: " + err.message, "error");
             }
         }
 
@@ -1365,14 +1400,23 @@
             }
             try {
                 showToast("Henter rute fra skyen...", "info");
-                const url = `https://getpantry.io/apiv1/pantry/${PANTRY_ID}/basket/seilferie_${code}`;
+                await authPromise;
                 
-                const response = await fetch(url);
-                if (!response.ok) {
+                if (!auth.currentUser) {
+                    showToast("Autentisering feilet.", "error");
+                    return;
+                }
+
+                // Strict path rule 1: Fetching document
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'routes', code);
+                const docSnap = await getDoc(docRef);
+
+                if (!docSnap.exists()) {
                     showToast("Ugyldig, tom eller utgått sky-kode.", "error");
                     return;
                 }
-                const data = await response.json();
+
+                const data = docSnap.data();
                 if (data && (data.routeDays || data.harbors)) {
                     if (confirm("Vil du overskrive alt med data hentet fra skyen?")) {
                         if (data.startDate) state.startDate = data.startDate;
@@ -1390,11 +1434,11 @@
                         renderAll();
                     }
                 } else {
-                    showToast("Ugyldig dataformat i skyen.", "error");
+                    showToast("Ugyldig dataformat mottatt fra skyen.", "error");
                 }
             } catch (err) {
-                console.error("Cloud retrieval error:", err);
-                showToast("Klarte ikke å hente data. Sjekk koden din.", "error");
+                console.error("Cloud storage download failed:", err);
+                showToast("Klarte ikke å hente data: " + err.message, "error");
             }
         }
 
@@ -1432,7 +1476,6 @@
             const webcamUrl = webcamUrlEl.value.trim();
 
             if (editIdEl.value) {
-                // REDIGERING AV EKSISTERENDE HAVN
                 const targetId = editIdEl.value;
                 const idx = state.harbors.findIndex(h => h.id === targetId);
                 if (idx !== -1) {
@@ -1443,7 +1486,6 @@
                 }
                 cancelEditHarbor();
             } else {
-                // OPPRETTE NY HAVN
                 const id = "custom_" + Date.now();
                 state.harbors.push({
                     id, name, lat, lng, guideName, guideUrl, webcamUrl, yrUrl
@@ -1481,10 +1523,7 @@
             document.getElementById("btn-harbor-save").className = "flex-1 py-2.5 bg-amber-500 hover:bg-teal-400 text-slate-950 rounded-xl text-xs font-extrabold transition shadow-lg";
             document.getElementById("btn-harbor-cancel").classList.remove("hidden");
 
-            // Scroll to form
             document.getElementById("form-harbor-title").scrollIntoView({ behavior: 'smooth' });
-
-            // Redraw database map to show yellow draggable pin
             drawDatabaseMapRoutes();
         }
 
@@ -1506,7 +1545,6 @@
         }
 
         function deleteHarbor(id) {
-            // Sjekk om havnen brukes i ruteplanen
             const isUsed = state.routeDays.some(d => d.harborId === id);
             if (isUsed) {
                 showToast("Kan ikke slette en havn som er i bruk i ruteplanen din.", "error");
@@ -1550,7 +1588,6 @@
                     attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
                 }).addTo(dbMap);
 
-                // Click on map to populate forms
                 dbMap.on('click', function(e) {
                     const editId = document.getElementById("edit-harbor-id").value;
                     if (!editId) {
@@ -1763,38 +1800,6 @@
             }
         }
 
-        function initializeDatePicker() {
-            try {
-                flatpickr("#input-start-date", {
-                    locale: "no",
-                    dateFormat: "d/m/Y",
-                    defaultDate: parseDateString(state.startDate),
-                    onChange: function(selectedDates, dateStr) {
-                        state.startDate = dateStr;
-                        persistState();
-                        fetchStatus = {};
-                        liveWeatherData = {};
-                        renderAll();
-                    }
-                });
-            } catch (e) {
-                console.error("Flatpickr initialization failed", e);
-            }
-        }
-
-        function getWeatherIconClass(weather) {
-            const sym = weather.symbolCode || "";
-            if (sym.includes("rain") || sym.includes("showers")) return "fa-cloud-showers-heavy text-sky-400";
-            if (sym.includes("sleet") || sym.includes("snow")) return "fa-snowflake text-teal-300";
-            if (sym.includes("cloud") || sym.includes("partlycloudy")) return "fa-cloud-sun text-slate-400";
-            if (sym.includes("clearsky") || sym.includes("fair")) return "fa-sun text-amber-400";
-            
-            if (weather.condition === "Rainy") return "fa-cloud-showers-heavy text-sky-400";
-            if (weather.condition === "Cloudy") return "fa-cloud text-slate-400";
-            if (weather.condition === "Windy") return "fa-wind text-teal-400";
-            return "fa-sun text-amber-400";
-        }
-
         function renderAll() {
             // Synchronize speed field
             document.getElementById("input-boat-speed").value = state.boatSpeed;
@@ -1961,7 +1966,7 @@
                                 </div>
                             </div>
 
-                            <!-- WEATHER DISPLAY (WITH SECURE Fallback Check) -->
+                            <!-- WEATHER DISPLAY -->
                             <div id="weather-box-${index}" class="bg-slate-950 rounded-xl p-4 border border-slate-800 space-y-3">
                                 <div class="flex items-center justify-between border-b border-slate-900 pb-2">
                                     <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
@@ -2230,12 +2235,44 @@
             `).join('');
         }
 
-        window.onload = function() {
-            loadSavedState();
-            initializeDatePicker();
-            initializeMap();
-            renderAll();
-        };
+        // --- GLOBAL EXPORTS FROM MODULE TO WINDOW AT TIME OF LOADING ---
+        window.switchTab = switchTab;
+        window.updateStartDate = updateStartDate;
+        window.updateBoatSpeed = updateBoatSpeed;
+        window.saveCurrentRoute = saveCurrentRoute;
+        window.loadSavedRoute = loadSavedRoute;
+        window.deleteSavedRoute = deleteSavedRoute;
+        window.exportTotalBackup = exportTotalBackup;
+        window.triggerFileInput = triggerFileInput;
+        window.importTotalBackup = importTotalBackup;
+        window.downloadFromCloud = downloadFromCloud;
+        window.uploadToCloud = uploadToCloud;
+        window.addNewDay = addNewDay;
+        window.showResetConfirmation = showResetConfirmation;
+        window.closeResetModal = closeResetModal;
+        window.confirmReset = confirmReset;
+        window.addDinnerIdea = addDinnerIdea;
+        window.removeDinnerIdea = removeDinnerIdea;
+        window.addNewCustomHarbor = addNewCustomHarbor;
+        window.cancelEditHarbor = cancelEditHarbor;
+        window.editHarbor = editHarbor;
+        window.deleteHarbor = deleteHarbor;
+        window.moveDay = moveDay;
+        window.removeDay = removeDay;
+        window.toggleBooked = toggleBooked;
+        window.updateDayHarbor = updateDayHarbor;
+        window.updateDayDinner = updateDayDinner;
+        window.updateDayNotes = updateDayNotes;
+        window.updateWeatherSlider = updateWeatherSlider;
+        window.resetCustomWeather = resetCustomWeather;
+        window.insertDayAfter = insertDayAfter;
+        window.copyToClipboard = copyToClipboard;
+
+        // Initialize state, pickers & maps immediately on DOM parsing complete
+        loadSavedState();
+        initializeDatePicker();
+        initializeMap();
+        renderAll();
     </script>
 </body>
 </html>
