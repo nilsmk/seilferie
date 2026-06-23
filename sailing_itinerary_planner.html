@@ -290,7 +290,7 @@
                     <!-- TOTAL BACKUP PANEL -->
                     <div class="border-t border-slate-800 pt-4 space-y-3">
                         <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                            Backup &amp; Synkronisering:
+                            Backup &amp; Synkronisering (Offline-vennlig):
                         </label>
                         <div class="grid grid-cols-2 gap-2">
                             <button onclick="exportTotalBackup()" class="px-2.5 py-2.5 bg-gradient-to-r from-teal-500 to-marine-600 hover:from-teal-400 hover:to-marine-500 text-slate-950 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 shadow-md" title="Eksporter alt til en fil for å dele eller flytte til en annen enhet">
@@ -302,7 +302,7 @@
                             <input type="file" id="file-import-input" onchange="importTotalBackup(event)" class="hidden" accept=".json" />
                         </div>
                         <p class="text-[10px] text-slate-500 leading-normal italic text-center">
-                            Overfør filen til mobilen eller nettbrettet om bord for rask visning.
+                            Overfør filen til mobilen eller nettbrettet om bord for 100 % driftssikker visning uten nett!
                         </p>
                     </div>
 
@@ -380,7 +380,7 @@
             <div id="dinners-list-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         </div>
 
-        <!-- TAB 3: HAVNEGUIDE DATABASE -->
+        <!-- TAB 3: HAVNEGUIDE DATABASE (MED INTEGRERT KART OG OPPRETTELSE/REDIGERING) -->
         <div id="tab-content-database" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-start no-print">
             
             <!-- LEFT COLUMN: ADD / EDIT HARBOR FORM -->
@@ -808,11 +808,45 @@
                         else if (symbolCode.includes("cloud") || symbolCode.includes("partlycloudy") || symbolCode.includes("fog")) condition = "Cloudy";
 
                         liveWeatherData[key] = {
-                            temp, windSpeed, gusts, condition, rainAmount, windDir, symbolCode, isLive: true, isSubseasonal: false
+                            temp, windSpeed, gusts, condition, rainAmount, windDir, symbolCode, isLive: true, source: "met_live"
                         };
                         fetchStatus[key] = "success";
                     }
-                } else {
+                } else if (diffDays > 10 && diffDays <= 15) {
+                    const url = `https://api.open-meteo.com/v1/forecast?latitude=${harbor.lat.toFixed(4)}&longitude=${harbor.lng.toFixed(4)}&hourly=temperature_2m,rain,wind_speed_10m,wind_direction_10m,cloud_cover,wind_gusts_10m&models=ecmwf_ifs&wind_speed_unit=ms&forecast_days=16`;
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error("Open-Meteo ECMWF failed");
+
+                    const data = await response.json();
+                    
+                    const targetYear = plannedDate.getFullYear();
+                    const targetMonth = String(plannedDate.getMonth() + 1).padStart(2, '0');
+                    const targetDay = String(plannedDate.getDate()).padStart(2, '0');
+                    const targetPrefix = `${targetYear}-${targetMonth}-${targetDay}T12:00`; 
+
+                    const timeIndex = data.hourly.time.findIndex(t => t === targetPrefix);
+
+                    if (timeIndex !== -1) {
+                        const temp = data.hourly.temperature_2m[timeIndex];
+                        const windSpeed = data.hourly.wind_speed_10m[timeIndex];
+                        const gusts = data.hourly.wind_gusts_10m[timeIndex];
+                        const windDir = degToCompass(data.hourly.wind_direction_10m[timeIndex]);
+                        const rainAmount = data.hourly.rain[timeIndex] || 0;
+                        const cloudCover = data.hourly.cloud_cover[timeIndex];
+
+                        let condition = "Sunny";
+                        if (rainAmount > 0.5) condition = "Rainy";
+                        else if (cloudCover > 50) condition = "Cloudy";
+
+                        liveWeatherData[key] = {
+                            temp, windSpeed, gusts, condition, rainAmount, windDir, symbolCode: condition === "Rainy" ? "rain" : "clearsky", isLive: true, source: "ecmwf"
+                        };
+                        fetchStatus[key] = "success";
+                    } else {
+                         fetchStatus[key] = "no_data";
+                    }
+
+                } else if (diffDays > 15 && diffDays <= 21) {
                     const url = `https://api.met.no/weatherapi/subseasonal/1.0/complete?lat=${harbor.lat.toFixed(4)}&lon=${harbor.lng.toFixed(4)}`;
                     const response = await fetch(url);
                     if (!response.ok) throw new Error("MET subseasonal failed");
@@ -862,7 +896,7 @@
                             windDir: "-", 
                             symbolCode: condition === "Rainy" ? "rain" : "clearsky", 
                             isLive: true, 
-                            isSubseasonal: true
+                            source: "met_subseasonal"
                         };
                         fetchStatus[key] = "success";
                     } else {
@@ -870,7 +904,7 @@
                     }
                 }
             } catch (err) {
-                console.error("MET error:", err);
+                console.error("MET/ECMWF error:", err);
                 fetchStatus[key] = "error";
             }
 
@@ -1311,8 +1345,7 @@
                 } catch (err) {
                     showToast("Kunne ikke lese sikkerhetskopifilen.", "error");
                 }
-                // RESETTER input feltet slik at du kan laste opp nøyaktig samme fil to ganger!
-                event.target.value = "";
+                event.target.value = ""; // Resetter feltet for gjentatte opplastinger
             };
             reader.readAsText(file);
         }
@@ -1714,7 +1747,7 @@
         }
 
         function renderAll() {
-            // Absolutte fallbacks for å unngå blank side
+            // Absolutte fallbacks i render-løkka for å unngå blank side hvis minnet ble tømt/korrupt
             if (!state.harbors || !Array.isArray(state.harbors) || state.harbors.length === 0) {
                 state.harbors = [...SEED_HARBORS];
             }
@@ -1727,7 +1760,7 @@
                 ];
             }
 
-            // Rens dagsruten for ufullstendige elementer
+            // Rens dagsruten for eventuelle ugyldige oppføringer
             state.routeDays = state.routeDays.filter(day => day && typeof day === 'object' && day.harborId);
 
             document.getElementById("input-boat-speed").value = state.boatSpeed;
@@ -1815,8 +1848,10 @@
                 } else if (weatherFetchStatus === "loading") {
                     weatherBadgeHtml = `<span class="bg-slate-500/10 text-slate-400 border border-slate-500/20 px-2 py-0.5 rounded text-[10px] font-bold"><i class="fa-solid fa-spinner animate-spin"></i> Henter...</span>`;
                 } else if (weather.isLive) {
-                    if (weather.isSubseasonal) {
+                    if (weather.source === "met_subseasonal") {
                         weatherBadgeHtml = `<span class="bg-sky-500/15 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded text-[10px] font-black"><i class="fa-solid fa-satellite"></i> 🔵 MET 21-dagersvarsel</span>`;
+                    } else if (weather.source === "ecmwf") {
+                        weatherBadgeHtml = `<span class="bg-purple-500/15 text-purple-400 border border-purple-500/20 px-2 py-0.5 rounded text-[10px] font-black"><i class="fa-solid fa-earth-europe"></i> 🟣 ECMWF 15-dagersvarsel</span>`;
                     } else {
                         weatherBadgeHtml = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-black"><i class="fa-solid fa-satellite"></i> 🟢 Live MET-varsel</span>`;
                     }
@@ -2114,7 +2149,7 @@
                                     Temp: ${typeof weather.temp === 'number' ? weather.temp.toFixed(1) + '°C' : '-'}, 
                                     Vind: ${typeof weather.windSpeed === 'number' ? weather.windSpeed + ' m/s ' + weather.windDir : '-'}, 
                                     Kast: ${typeof weather.gusts === 'number' ? weather.gusts + ' m/s' : '-'}. 
-                                    ${weather.isLive ? (weather.isSubseasonal ? '(MET 21-dagers)' : '(Live MET)') : '(Intet varsel)'}
+                                    ${weather.isLive ? (weather.source === 'met_subseasonal' ? '(MET 21-dagers)' : (weather.source === 'ecmwf' ? '(ECMWF)' : '(Live MET)')) : '(Intet varsel)'}
                                 </span>
                             </div>
                         </div>
