@@ -1,0 +1,66 @@
+/* Custom Map overrides */
+.leaflet-container {
+    font-family: 'Inter', sans-serif;
+    background: #031b2e;
+}
+.leaflet-bar a {
+    background-color: #0c4a6e !important;
+    color: #bae2fd !important;
+    border-bottom: 1px solid #075985 !important;
+}
+.leaflet-bar a:hover {
+    background-color: #0ea5e9 !important;
+    color: #fff !important;
+}
+.leaflet-popup-content-wrapper {
+    background: #0c4a6e !important;
+    color: #f0f7ff !important;
+    border-radius: 0.75rem !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3) !important;
+}
+.leaflet-popup-tip {
+    background: #0c4a6e !important;
+}
+
+/* Flatpickr Theme Overrides */
+.flatpickr-calendar {
+    background: #0f172a !important; 
+    border: 1px solid #1e293b !important; 
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5) !important;
+    color: #f1f5f9 !important;
+    border-radius: 1rem !important;
+}
+.flatpickr-months .flatpickr-month {
+    background: #0f172a !important;
+    color: #fff !important;
+}
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+    background: #0f172a !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+}
+.flatpickr-day {
+    color: #cbd5e1 !important;
+    border-radius: 0.5rem !important;
+}
+.flatpickr-day:hover {
+    background: #1e293b !important;
+    color: #fff !important;
+}
+.flatpickr-day.selected {
+    background: #14b8a6 !important; 
+    border-color: #14b8a6 !important;
+    color: #031b2e !important;
+    font-weight: 800 !important;
+}
+.flatpickr-day.today {
+    border-color: #0ea5e9 !important; 
+}
+.flatpickr-weekday {
+    color: #64748b !important; 
+    font-weight: 600 !important;
+}
+.flatpickr-months .flatpickr-prev-month, .flatpickr-months .flatpickr-next-month {
+    fill: #14b8a6 !important;
+    color: #14b8a6 !important;
+}

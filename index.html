@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="no" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seilferie 2026 - Ruteplanlegger</title>
+    
+    <!-- EXTERNAL LIBRARIES -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/no.js"></script>
+
+    <!-- PROJECT STYLESHEETS -->
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/print.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif'],
+                    },
+                    colors: {
+                        marine: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            200: '#bae2fd',
+                            300: '#7dd2fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                            950: '#031b2e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-marine-950 text-slate-100 min-h-screen flex flex-col selection:bg-teal-500 selection:text-white">
+
+    <!-- HEADER -->
+    <header class="bg-slate-900 border-b border-slate-800 shadow-xl sticky top-0 z-[1000] no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-teal-400 to-marine-600 rounded-lg flex items-center justify-center shadow-lg">
+                        <i class="fa-solid fa-compass text-white text-xl animate-pulse"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                            Seilferie <span class="text-teal-400 font-serif italic text-base">2026</span>
+                        </h1>
+                        <p class="text-xs text-slate-400">Interaktiv ruteplanlegger</p>
+                    </div>
+                </div>
+                
+                <!-- NAVIGATION TABS -->
+                <nav class="flex space-x-1 sm:space-x-2 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                    <button id="btn-planner" onclick="switchTab('planner')" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition duration-200 flex items-center gap-2 bg-marine-600 text-white shadow-md">
+                        <i class="fa-solid fa-map-location-dot"></i>
+                        <span class="hidden sm:inline">Ruteplan</span>
+                    </button>
+                    <button id="btn-dinners" onclick="switchTab('dinners')" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition duration-200 flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-900">
+                        <i class="fa-solid fa-utensils"></i>
+                        <span class="hidden sm:inline">Middagsmeny</span>
+                    </button>
+                    <button id="btn-database" onclick="switchTab('database')" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition duration-200 flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-900">
+                        <i class="fa-solid fa-warehouse"></i>
+                        <span class="hidden sm:inline">Havneguide</span>
+                    </button>
+                    <button id="btn-summary" onclick="switchTab('summary')" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition duration-200 flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-900">
+                        <i class="fa-solid fa-print"></i>
+                        <span class="hidden sm:inline">Sammendrag</span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- DYNAMIC BODY CONTENT -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+        <!-- TRIP QUICK STATS OVERVIEW -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gradient-to-r from-slate-900 to-marine-950 border border-slate-800 p-5 rounded-2xl shadow-xl no-print">
+            <div class="flex items-center space-x-3">
+                <div class="p-3 bg-marine-500/10 text-marine-400 rounded-xl">
+                    <i class="fa-solid fa-calendar-days text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Varighet</p>
+                    <p id="stat-days" class="text-base font-bold text-white">0 Dager</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <div class="p-3 bg-teal-500/10 text-teal-400 rounded-xl">
+                    <i class="fa-solid fa-route text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Total Distanse &amp; Tid</p>
+                    <p id="stat-distance" class="text-sm sm:text-base font-bold text-white">0 NM (~0t)</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <div class="p-3 bg-amber-500/10 text-amber-400 rounded-xl">
+                    <i class="fa-solid fa-wind text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Vindvarsler</p>
+                    <p id="stat-wind-alerts" class="text-base font-bold text-white">0 dager</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <div class="p-3 bg-blue-500/10 text-blue-400 rounded-xl">
+                    <i class="fa-solid fa-cloud-showers-heavy text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Regnmeldt</p>
+                    <p id="stat-rain-alerts" class="text-base font-bold text-white">0 dager</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 1: MAIN ROUTE PLANNER -->
+        <div id="tab-content-planner" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            <!-- LEFT COLUMN: MAP & CONTROLS -->
+            <div class="lg:col-span-5 space-y-6 lg:sticky lg:top-28 no-print">
+                
+                <!-- SETTINGS PANEL -->
+                <div class="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-lg space-y-4">
+                    <h3 class="font-bold text-lg text-white border-b border-slate-800 pb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-teal-400"></i>
+                        Dato og Innstillinger
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wide">
+                                Første reisedato:
+                            </label>
+                            <div class="relative">
+                                <i class="fa-regular fa-calendar absolute left-3 top-3 text-teal-400"></i>
+                                <input 
+                                    type="text" 
+                                    id="input-start-date" 
+                                    class="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 pl-10 pr-4 text-white font-medium focus:ring-2 focus:ring-teal-500 outline-none text-sm cursor-pointer"
+                                    placeholder="Velg dato..."
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wide">
+                                Båtens fart (knop):
+                            </label>
+                            <div class="relative">
+                                <i class="fa-solid fa-gauge-simple-high absolute left-3 top-3 text-teal-400"></i>
+                                <input 
+                                    type="number" 
+                                    id="input-boat-speed" 
+                                    min="1" 
+                                    max="30" 
+                                    step="0.5"
+                                    onchange="updateBoatSpeed(this.value)"
+                                    class="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 pl-10 pr-4 text-white font-medium focus:ring-2 focus:ring-teal-500 outline-none text-sm"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SAVED ROUTES ARCHIVE -->
+                    <div class="border-t border-slate-800 pt-4 space-y-3">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                            Lagrede ruter / Alternativer:
+                        </label>
+                        <div class="flex gap-2">
+                            <input 
+                                type="text" 
+                                id="input-route-name" 
+                                placeholder="F.eks. Hovedrute, rute B..." 
+                                class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 outline-none focus:ring-1 focus:ring-teal-500"
+                            />
+                            <button onclick="saveCurrentRoute()" class="px-3 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl text-xs font-black transition duration-200">
+                                Lagre
+                            </button>
+                        </div>
+                        <div id="saved-routes-list" class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                            <!-- Dynamically populated list of saved routes -->
+                        </div>
+                    </div>
+
+                    <!-- TOTAL BACKUP PANEL -->
+                    <div class="border-t border-slate-800 pt-4 space-y-3">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                            Backup &amp; Synkronisering:
+                        </label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="exportTotalBackup()" class="px-2.5 py-2.5 bg-gradient-to-r from-teal-500 to-marine-600 hover:from-teal-400 hover:to-marine-500 text-slate-950 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 shadow-md" title="Eksporter alt til en fil for å dele eller flytte til en annen enhet">
+                                <i class="fa-solid fa-file-export"></i> Eksporter alt
+                            </button>
+                            <button onclick="triggerFileInput()" class="px-2.5 py-2.5 bg-slate-950 hover:bg-slate-850 text-slate-300 rounded-xl text-xs font-bold border border-slate-800 transition flex items-center justify-center gap-1.5" title="Importer filen på denne enheten for å laste inn alt">
+                                <i class="fa-solid fa-file-import text-teal-400"></i> Importer alt
+                            </button>
+                            <input type="file" id="file-import-input" onchange="importTotalBackup(event)" class="hidden" accept=".json" />
+                        </div>
+                        <p class="text-[10px] text-slate-500 leading-normal italic text-center">
+                            Overfør filen til mobilen eller nettbrettet om bord for 100 % driftssikker visning uten nett!
+                        </p>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+                        <button onclick="showResetConfirmation()" class="px-3 py-1.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg text-xs font-semibold transition-all duration-200">
+                            <i class="fa-solid fa-trash-can mr-1"></i> Nullstill rute
+                        </button>
+                        
+                        <button onclick="addNewDay()" class="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl text-xs font-extrabold transition-all duration-200 shadow-lg">
+                            <i class="fa-solid fa-plus mr-1"></i> Legg til dag
+                        </button>
+                    </div>
+                </div>
+
+                <!-- LIVE LEAFLET MAP -->
+                <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-lg flex flex-col">
+                    <div class="p-4 bg-slate-900 border-b border-slate-800 flex justify-between items-center">
+                        <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                            <i class="fa-solid fa-map text-teal-400"></i>
+                            Seilingskart over Oslofjorden
+                        </h3>
+                    </div>
+                    <div id="sailing-map" class="h-[360px] w-full bg-marine-950"></div>
+                    <div class="p-3 bg-slate-950 text-[11px] text-slate-400 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-info text-teal-400"></i>
+                        <span>Blå sirkler viser planlagte havner. Klikk på kartet for havneinfo.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: CHRONOLOGICAL CARDS -->
+            <div class="lg:col-span-7 space-y-6">
+                <h3 class="font-bold text-xl text-white flex items-center gap-2 no-print">
+                    <i class="fa-solid fa-compass text-teal-400"></i>
+                    Dag-for-dag reiserute
+                </h3>
+
+                <!-- Container where JavaScript will dynamically mount our day cards -->
+                <div id="day-cards-container" class="space-y-6"></div>
+
+                <!-- ADD BUTTON -->
+                <button onclick="addNewDay()" class="w-full py-4 border-2 border-dashed border-slate-800 hover:border-teal-500/50 bg-slate-900/30 hover:bg-slate-900/60 rounded-2xl transition duration-200 text-slate-400 hover:text-teal-400 flex flex-col items-center justify-center gap-1 cursor-pointer no-print">
+                    <i class="fa-solid fa-plus-circle text-xl animate-bounce"></i>
+                    <span class="text-sm font-bold">Legg til en ny seiledag</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- TAB 2: MIDDAGSMENY -->
+        <div id="tab-content-dinners" class="hidden bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xl space-y-6 no-print">
+            <div class="border-b border-slate-800 pb-4 flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-utensils text-teal-400"></i>
+                        Middagsliste
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Legg til nye middager eller fjern retter fra den tilgjengelige listen.</p>
+                </div>
+                <div class="flex items-center space-x-2 w-full sm:w-auto">
+                    <input 
+                        type="text"
+                        id="new-dinner-input"
+                        placeholder="Legg til ny middagsrett..."
+                        class="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-teal-500 w-full sm:w-64"
+                    />
+                    <button 
+                        onclick="addDinnerIdea()"
+                        class="bg-teal-500 hover:bg-teal-400 text-slate-950 px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-1"
+                    >
+                        Legg til
+                    </button>
+                </div>
+            </div>
+
+            <div id="dinners-list-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </div>
+
+        <!-- TAB 3: HAVNEGUIDE DATABASE -->
+        <div id="tab-content-database" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-start no-print">
+            
+            <!-- LEFT COLUMN: ADD / EDIT HARBOR FORM -->
+            <div class="lg:col-span-5 bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-lg space-y-4">
+                <div>
+                    <h3 id="form-harbor-title" class="font-bold text-lg text-white flex items-center gap-2">
+                        <i class="fa-solid fa-anchor text-teal-400"></i>
+                        Legg til ny havn
+                    </h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Fyll ut detaljene eller klikk direkte i kartet til høyre for å hente koordinater.</p>
+                </div>
+
+                <input type="hidden" id="edit-harbor-id" value="" />
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Havnenavn*</label>
+                        <input type="text" id="form-harbor-name" placeholder="F.eks. Hankø, Verdens Ende..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-teal-500" required />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Breddegrad (Lat)*</label>
+                            <input type="number" step="0.0001" id="form-harbor-lat" placeholder="F.eks. 59.1234" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-teal-500" required />
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Lengdegrad (Lng)*</label>
+                            <input type="number" step="0.0001" id="form-harbor-lng" placeholder="F.eks. 10.4567" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-teal-500" required />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Navn i Havneguide</label>
+                        <input type="text" id="form-harbor-guideName" placeholder="F.eks. Hankø gjestehavn" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-teal-500" />
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Yr.no Værvarsel-URL</label>
+                        <input type="url" id="form-harbor-yrUrl" placeholder="https://www.yr.no/nb/værvarsel/daglig-tabell/..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-teal-500" />
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Webkamera-URL (Bilde/MJPEG)</label>
+                        <input type="url" id="form-harbor-webcamUrl" placeholder="https://nettkamera.no/... / .jpg" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-teal-500" />
+                    </div>
+
+                    <div class="flex items-center gap-2 pt-2">
+                        <button id="btn-harbor-save" onclick="addNewCustomHarbor()" class="flex-1 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl text-xs font-extrabold transition shadow-lg">
+                            <i class="fa-solid fa-plus mr-1"></i> Lagre havn
+                        </button>
+                        <button id="btn-harbor-cancel" onclick="cancelEditHarbor()" class="hidden px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition">
+                            Avbryt
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: INTERACTIVE ARCHIVE MAP & DATABASE TABLE -->
+            <div class="lg:col-span-7 space-y-6">
+                
+                <!-- HAVNE-KART -->
+                <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-lg flex flex-col">
+                    <div class="p-4 bg-slate-900 border-b border-slate-800 flex justify-between items-center">
+                        <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                            <i class="fa-solid fa-map-marked-alt text-teal-400"></i>
+                            Havneguide - Registreringskart
+                        </h3>
+                    </div>
+                    <div id="db-map" class="h-[300px] w-full bg-marine-950"></div>
+                    <div class="p-3 bg-slate-950 text-[11px] text-slate-400 space-y-1">
+                        <p class="flex items-center gap-1.5"><i class="fa-solid fa-circle-info text-teal-400"></i> <span><strong>Klikk i kartet</strong> for å hente koordinater direkte inn i skjemaet til venstre.</span></p>
+                        <p class="flex items-center gap-1.5"><i class="fa-solid fa-circle-info text-amber-400"></i> <span><strong>I redigeringsmodus</strong> kan du dra og slippe det gule ankeret direkte i kartet for å flytte havnen!</span></p>
+                    </div>
+                </div>
+
+                <!-- SEARCHABLE TABLE -->
+                <div class="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-lg space-y-4">
+                    <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                        <i class="fa-solid fa-list-ul text-teal-400"></i>
+                        Søkbart Havnearkiv
+                    </h3>
+                    
+                    <div class="overflow-x-auto max-h-96">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="text-[10px] text-slate-400 uppercase bg-slate-950 border border-slate-800 sticky top-0 z-10">
+                                <tr>
+                                    <th scope="col" class="px-3 py-2.5">Havn</th>
+                                    <th scope="col" class="px-3 py-2.5">Posisjon</th>
+                                    <th scope="col" class="px-3 py-2.5">Lenker</th>
+                                    <th scope="col" class="px-3 py-2.5 text-right">Handling</th>
+                                </tr>
+                            </thead>
+                            <tbody id="harbor-table-body" class="divide-y divide-slate-800/60">
+                                <!-- Dynamic harbor rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: SUMMARY (PRINTABLE VIEW) -->
+        <div id="tab-content-summary" class="hidden bg-slate-900 rounded-2xl border border-slate-800 p-6 sm:p-8 shadow-xl space-y-8">
+            <div class="border-b-2 border-slate-800 pb-6 flex flex-wrap justify-between items-center gap-4 no-print">
+                <div>
+                    <span class="text-teal-400 font-bold uppercase tracking-widest text-xs">Seilferie 2026</span>
+                    <h2 class="text-2xl font-extrabold text-white">Fullstendig Reisesammendrag</h2>
+                </div>
+                <button onclick="window.print()" class="px-4 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl text-xs font-extrabold transition flex items-center gap-2 shadow-lg">
+                    <i class="fa-solid fa-print"></i> Skriv ut reiserute / Lagre PDF
+                </button>
+            </div>
+
+            <!-- Print-friendly details -->
+            <div id="print-area" class="space-y-6">
+                <div class="text-slate-950 bg-white p-6 rounded-xl border border-slate-300 space-y-4">
+                    <h1 class="text-2xl font-black border-b pb-2">Seilasdetaljer - Sommer 2026</h1>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm font-medium">
+                        <div>
+                            <p class="text-slate-500 uppercase text-[10px] font-bold">Startdato</p>
+                            <p id="print-start-date" class="font-bold">-</p>
+                        </div>
+                        <div>
+                            <p class="text-slate-500 uppercase text-[10px] font-bold">Planlagte dager</p>
+                            <p id="print-total-days" class="font-bold">-</p>
+                        </div>
+                        <div>
+                            <p class="text-slate-500 uppercase text-[10px] font-bold">Antatt distanse &amp; seilingstid</p>
+                            <p id="print-total-distance" class="font-bold">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OPPSUMMERINGSKART -->
+                <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-lg flex flex-col print:border-slate-300 print:bg-white print:text-slate-900">
+                    <div class="p-4 bg-slate-900 border-b border-slate-800 flex justify-between items-center print:bg-slate-100 print:border-slate-300">
+                        <h3 class="font-bold text-sm text-white flex items-center gap-2 print:text-slate-800">
+                            <i class="fa-solid fa-map text-teal-400 print:text-teal-600"></i>
+                            Gjeldende Seilingsrute
+                        </h3>
+                    </div>
+                    <div id="summary-map" class="h-[350px] w-full bg-marine-950 print:h-[280px]"></div>
+                </div>
+
+                <!-- Print warnings summary -->
+                <div id="print-warnings-container" class="bg-amber-50 border border-amber-300 p-4 rounded-xl text-amber-950 space-y-2">
+                    <h4 class="font-extrabold text-sm flex items-center gap-1.5">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Sikkerhetsmerknader for ruten
+                    </h4>
+                    <ul id="print-warnings-list" class="list-disc list-inside text-xs space-y-1"></ul>
+                </div>
+
+                <!-- Day Cards Print view -->
+                <div class="space-y-4">
+                    <h3 class="font-extrabold text-lg text-white border-b border-slate-800 pb-2">Daglig program</h3>
+                    <div id="print-timeline-container" class="space-y-4"></div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-6 mt-12 no-print">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-400 space-y-2">
+            <p>⛵ Seilferie 2026 ruteplanlegger basert på opplastet ruteplan og middagsarkiv.</p>
+            <p class="text-slate-500">Avstander er kalkulert via Haversine-formelen som luftlinjeestimater.</p>
+        </div>
+    </footer>
+
+    <!-- RESET MODAL -->
+    <div id="reset-modal" class="fixed inset-0 bg-black/80 z-[9999] hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-sm w-full space-y-4">
+            <h3 class="font-black text-lg text-white">Nullstill reiserute?</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">Er du sikker på at du vil nullstille ruten din? Alle dager og egne innstillinger blir slettet og satt tilbake til standard.</p>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeResetModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold text-slate-300">Avbryt</button>
+                <button onclick="confirmReset()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 rounded-xl text-xs font-bold text-white">Ja, slett alt (Fabrikkinnstilling)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHART MODAL -->
+    <div id="chart-modal" class="fixed inset-0 bg-black/80 z-[9999] hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 p-4 sm:p-6 rounded-2xl max-w-2xl w-full space-y-4 relative shadow-2xl">
+            <button onclick="closeChartModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800 rounded-full w-8 h-8 flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
+            <h3 id="chart-modal-title" class="font-black text-lg text-white pr-8">Vær-graf</h3>
+            <div class="h-64 sm:h-80 w-full relative">
+                <canvas id="weatherChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- PROJECT JAVASCRIPT MODULES -->
+    <script src="js/utils.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/weather.js"></script>
+    <script src="js/maps.js"></script>
+    <script src="js/ui.js"></script>
+
+    <!-- APPLICATION INITIALIZATION -->
+    <script>
+        function initApp() {
+            loadSavedState();
+            initializeDatePicker();
+            initializeMap();
+            renderAll();
+        }
+
+        // Start app when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initApp);
+        } else {
+            initApp(); 
+        }
+    </script>
+</body>
+</html>
