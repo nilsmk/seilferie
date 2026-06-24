@@ -72,6 +72,8 @@ function renderAll() {
 
     state.routeDays = state.routeDays.filter(day => day && typeof day === 'object' && day.harborId);
     document.getElementById("input-boat-speed").value = state.boatSpeed;
+    document.getElementById("input-fuel-consumption").value = state.fuelConsumption;
+    document.getElementById("input-fuel-tank").value = state.fuelTankCapacity;
 
     let totalNM = 0; let totalKM = 0; let rainAlerts = 0; let windAlerts = 0;
     const calculatedDistances = []; const weatherSnapshots = [];
@@ -108,10 +110,17 @@ function renderAll() {
     });
 
     const totalTravelTimeFormatted = formatTravelTime(totalNM, state.boatSpeed);
+    const totalFuelNeeded = calculateFuelNeeded(totalNM, state.boatSpeed, state.fuelConsumption);
     document.getElementById("stat-days").innerText = `${state.routeDays.length} Dager`;
     document.getElementById("stat-distance").innerText = `${totalNM.toFixed(1)} NM (${totalKM.toFixed(0)} km) ${totalTravelTimeFormatted}`;
     document.getElementById("stat-wind-alerts").innerText = `${windAlerts} dager`;
     document.getElementById("stat-rain-alerts").innerText = `${rainAlerts} dager`;
+    const fuelEl = document.getElementById("stat-fuel");
+    if (fuelEl) {
+        const refuels = state.fuelTankCapacity > 0 ? Math.max(0, Math.ceil(totalFuelNeeded / state.fuelTankCapacity) - 1) : 0;
+        fuelEl.innerText = `${totalFuelNeeded.toFixed(1)} L${refuels > 0 ? ` (+${refuels} påfylling${refuels > 1 ? 'er' : ''})` : ''}`;
+        fuelEl.className = `text-base font-bold ${totalFuelNeeded > state.fuelTankCapacity && state.fuelTankCapacity > 0 ? 'text-amber-400' : 'text-white'}`;
+    }
 
     renderSavedRoutesList();
 
@@ -158,6 +167,7 @@ function renderAll() {
         }
 
         const legTravelTimeFormatted = index === 0 ? '' : ` (~${formatTravelTime(distance.nm, state.boatSpeed)})`;
+        const legFuelNeeded = index === 0 ? 0 : calculateFuelNeeded(distance.nm, state.boatSpeed, state.fuelConsumption);
 
         const cardHtml = `
             <div class="bg-slate-900 rounded-2xl border transition-all duration-300 overflow-hidden shadow-lg ${isBooked ? 'border-emerald-500/60 ring-2 ring-emerald-500/10' : hasWarnings ? 'border-amber-500/30 ring-1 ring-amber-500/10' : 'border-slate-800'} no-print">
@@ -171,7 +181,7 @@ function renderAll() {
                                 <p class="text-sm font-bold text-white">${formatNorwegianDate(state.startDate, day.dateOffset)}</p>
                                 ${isBooked ? '<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black tracking-wider px-2 py-0.5 rounded-lg flex items-center gap-1"><i class="fa-solid fa-lock text-[8px]"></i> BESTILT</span>' : ''}
                             </div>
-                            <p class="text-xs text-slate-400">Leggdistanse: ${index === 0 ? 'Startsted' : distance.nm.toFixed(1) + ' NM (' + distance.km.toFixed(1) + ' km)' + legTravelTimeFormatted}</p>
+                            <p class="text-xs text-slate-400">Leggdistanse: ${index === 0 ? 'Startsted' : distance.nm.toFixed(1) + ' NM (' + distance.km.toFixed(1) + ' km)' + legTravelTimeFormatted + ' · ~' + legFuelNeeded.toFixed(1) + ' L'}</p>
                         </div>
                     </div>
 

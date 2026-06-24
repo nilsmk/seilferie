@@ -30,6 +30,8 @@ const DEFAULT_DINNERS = [
 const state = {
     startDate: "24/07/2026",
     boatSpeed: 6.0,
+    fuelConsumption: 3.5,    // liters per hour under motor
+    fuelTankCapacity: 60,    // liters
     dinners: [...DEFAULT_DINNERS],
     harbors: [...SEED_HARBORS],
     routeDays: [
@@ -76,6 +78,16 @@ function loadSavedState() {
     } catch (e) { console.error("boatSpeed restore failed", e); }
 
     try {
+        const savedFuel = localStorage.getItem("seil_fuelConsumption");
+        if (savedFuel && savedFuel !== "undefined") state.fuelConsumption = parseFloat(savedFuel);
+    } catch (e) { console.error("fuelConsumption restore failed", e); }
+
+    try {
+        const savedTank = localStorage.getItem("seil_fuelTankCapacity");
+        if (savedTank && savedTank !== "undefined") state.fuelTankCapacity = parseFloat(savedTank);
+    } catch (e) { console.error("fuelTankCapacity restore failed", e); }
+
+    try {
         const savedDinners = localStorage.getItem("seil_dinners");
         if (savedDinners && savedDinners !== "undefined") {
             const parsed = JSON.parse(savedDinners);
@@ -109,6 +121,8 @@ function loadSavedState() {
 function persistState() {
     safeLocalStorageSet("seil_startDate", state.startDate);
     safeLocalStorageSet("seil_boatSpeed", state.boatSpeed);
+    safeLocalStorageSet("seil_fuelConsumption", state.fuelConsumption);
+    safeLocalStorageSet("seil_fuelTankCapacity", state.fuelTankCapacity);
     safeLocalStorageSet("seil_dinners", state.dinners);
     safeLocalStorageSet("seil_harbors", state.harbors);
     safeLocalStorageSet("seil_routeDays", state.routeDays);
@@ -289,6 +303,16 @@ function updateBoatSpeed(val) {
     }
 }
 
+function updateFuelSettings(type, value) {
+    const num = parseFloat(value);
+    if (!isNaN(num) && num >= 0) {
+        if (type === 'consumption') state.fuelConsumption = num;
+        if (type === 'tank') state.fuelTankCapacity = num;
+        persistState();
+        renderAll();
+    }
+}
+
 function addDinnerIdea() {
     const input = document.getElementById("new-dinner-input");
     const val = input.value.trim();
@@ -456,6 +480,8 @@ function confirmReset() {
     localStorage.clear();
     state.startDate = "24/07/2026";
     state.boatSpeed = 6.0;
+    state.fuelConsumption = 3.5;
+    state.fuelTankCapacity = 60;
     state.dinners = [...DEFAULT_DINNERS];
     state.harbors = [...SEED_HARBORS];
     state.routeDays = [{ dateOffset: 0, harborId: "saetre", dinner: state.dinners[0], customNotes: "", customWeather: null, booked: false }];

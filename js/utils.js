@@ -74,6 +74,13 @@ function formatTravelTime(nm, knots) {
     return `~${t.hours}t ${t.minutes}m`;
 }
 
+// Returns estimated liters of fuel for a given leg, assuming engine use the full distance.
+function calculateFuelNeeded(nm, boatSpeed, fuelConsumption) {
+    if (!boatSpeed || boatSpeed <= 0 || !fuelConsumption || fuelConsumption <= 0) return 0;
+    const hours = nm / boatSpeed;
+    return hours * fuelConsumption;
+}
+
 function showToast(message, type = "error") {
     const toast = document.createElement("div");
     toast.className = `fixed bottom-5 right-5 z-[10000] p-4 rounded-xl shadow-2xl transition-all duration-300 transform translate-y-10 opacity-0 border text-sm font-bold flex items-center gap-2 ${
