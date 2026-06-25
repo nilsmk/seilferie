@@ -10,6 +10,13 @@ A comprehensive, interactive web-based sailing trip planner for the Oslo Fjord a
   - ECMWF extended forecasts (3-14 days)
   - MET subseasonal forecasts (15-21 days)
   - Interactive weather graphs with hourly breakdowns
+- **Ensemble Weather Page** *(new — devel)*:
+  - Dedicated tab showing 16-day ECMWF IFS025 ensemble forecasts for **every harbor** in the database
+  - Powered by [Open-Meteo Ensemble API](https://open-meteo.com/en/docs/ensemble-api) (free, no API key required)
+  - 50 ensemble members + control run → ensemble mean with P10/P25/P75/P90 spread bands
+  - Per-harbor variable toggles: Temperature, Wind speed, Wind gusts, Pressure, Cloud cover, Rain
+  - Multiple Y-axes (temperature/cloud/rain on left; wind on right; pressure on its own axis)
+  - Tooltips show mean value plus P10–P90 uncertainty range
 - **Meal Management**: Curate custom dinner plans with a reusable database
 - **Harbor Database**: 18+ pre-loaded harbors with coordinates, weather links, webcam URLs, and harbor guide references
 - **Route Variants**: Save and load multiple route alternatives
@@ -31,7 +38,8 @@ seilferie/
 └── js/
     ├── state.js                  # Global state, persistence, route/harbor/dinner management
     ├── utils.js                  # Utility functions (date formatting, calculations, toasts)
-    ├── weather.js                # MET/ECMWF/subseasonal API fetching
+    ├── weather.js                # MET/ECMWF/subseasonal API fetching (route planner cards)
+    ├── ensemble_weather.js       # ECMWF IFS025 ensemble tab – Open-Meteo API, Chart.js rendering
     ├── maps.js                   # Leaflet map initialization and rendering
     └── ui.js                     # DOM rendering, tab switching, UI updates
 ```
@@ -89,6 +97,21 @@ seilferie/
 3. Click **"Skriv ut reiserute"** to generate a PDF-friendly view
 4. Print or save as PDF from your browser
 
+#### Ensemble Weather Forecasts
+1. Go to the **"Ensemble"** tab
+2. The app fetches 16-day ECMWF IFS025 ensemble data for all harbors automatically
+3. Each harbor panel shows an interactive Chart.js chart with ensemble spread:
+   - **Shaded bands**: outer (lighter) = P10–P90, inner (darker) = P25–P75 uncertainty
+   - **Solid line**: ensemble mean
+4. Use the **variable toggle buttons** at the top of each panel to show/hide:
+   - `Temperatur` (°C) – left axis
+   - `Vind` + `Vindkast` (m/s) – right axis
+   - `Trykk` (hPa) – separate right axis
+   - `Skydekke` (%) – left axis
+   - `Nedbør` (mm) – right axis
+5. Hover over the chart to see the exact mean and P10–P90 range in the tooltip
+6. If a fetch fails, click **"Prøv igjen"** in the panel
+
 ---
 
 ## 🛠️ Development Guide
@@ -101,7 +124,8 @@ The app is split into 5 focused JavaScript modules:
 |--------|---------|---|
 | **state.js** | Data management & persistence | `state` object, `loadSavedState()`, `persistState()`, CRUD for routes/harbors/dinners |
 | **utils.js** | Helper functions | `formatNorwegianDate()`, `calculateDistance()`, `showToast()`, `parseDateString()` |
-| **weather.js** | API integration | `fetchMETWeather()` for live/ECMWF/subseasonal forecasts |
+| **weather.js** | Route-card weather API | `fetchMETWeather()` for live/ECMWF/subseasonal forecasts |
+| **ensemble_weather.js** | Ensemble weather tab | `fetchEnsembleData()`, `processEnsembleData()`, `renderHarborChart()`, `toggleEnsembleVar()`, `renderEnsembleWeatherTab()` |
 | **maps.js** | Map rendering | `initializeMap()`, `drawMapRoute()`, `drawDatabaseMapRoutes()`, Leaflet markers/polylines |
 | **ui.js** | DOM updates & interaction | `renderAll()`, `switchTab()`, chart modals, form bindings |
 

@@ -7,6 +7,7 @@ function switchTab(tabId) {
     document.getElementById("tab-content-dinners").classList.add("hidden");
     document.getElementById("tab-content-database").classList.add("hidden");
     document.getElementById("tab-content-summary").classList.add("hidden");
+    document.getElementById("tab-content-weather").classList.add("hidden");
 
     document.querySelectorAll("nav button").forEach(btn => {
         btn.className = "px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition duration-200 flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-900";
@@ -34,6 +35,9 @@ function switchTab(tabId) {
             initializeSummaryMap();
             if (summaryMap) { summaryMap.invalidateSize(); drawSummaryMapRoute(); }
         }, 150);
+    }
+    if (tabId === "weather") {
+        renderEnsembleWeatherTab();
     }
     renderAll();
 }
